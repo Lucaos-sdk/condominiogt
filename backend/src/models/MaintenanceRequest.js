@@ -115,6 +115,25 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.TEXT,
       allowNull: true,
     },
+    // Campos para integração financeira
+    actual_cost: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      defaultValue: 0.00,
+    },
+    financial_transaction_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'financial_transactions',
+        key: 'id',
+      },
+    },
+    payment_status: {
+      type: DataTypes.ENUM('not_required', 'pending', 'partial', 'paid', 'overdue'),
+      allowNull: false,
+      defaultValue: 'not_required',
+    },
   }, {
     tableName: 'maintenance_requests',
     indexes: [
@@ -156,6 +175,17 @@ module.exports = (sequelize, DataTypes) => {
     MaintenanceRequest.belongsTo(models.User, {
       foreignKey: 'user_id',
       as: 'user',
+    });
+
+    // Relacionamento com FinancialTransaction
+    MaintenanceRequest.hasOne(models.FinancialTransaction, {
+      foreignKey: 'maintenance_request_id',
+      as: 'generatedExpense',
+    });
+
+    MaintenanceRequest.belongsTo(models.FinancialTransaction, {
+      foreignKey: 'financial_transaction_id',
+      as: 'linkedTransaction',
     });
   };
 

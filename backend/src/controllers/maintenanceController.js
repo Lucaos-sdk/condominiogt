@@ -2,6 +2,7 @@ const { MaintenanceRequest, Condominium, Unit, User, sequelize } = require('../m
 const { asyncHandler, logger } = require('../middleware/errorHandler');
 const { Op } = require('sequelize');
 const notificationService = require('../services/notificationService');
+const IntegrationService = require('../services/integrationService');
 
 // @desc    Obter todas as solicitações de manutenção
 // @route   GET /api/maintenance/requests
@@ -484,7 +485,7 @@ const approveMaintenanceRequest = asyncHandler(async (req, res) => {
   }
 
   await request.update({
-    status: 'in_progress',
+    status: 'approved', // Mudado para 'approved' para integração
     estimated_cost,
     assigned_to,
     assigned_contact,
@@ -495,11 +496,38 @@ const approveMaintenanceRequest = asyncHandler(async (req, res) => {
 
   logger.info(`Solicitação de manutenção aprovada: ${id} por usuário ${req.user.id}`);
 
+  // INTEGRAÇÃO AUTOMÁTICA: Criar despesa se há custo estimado
+  let createdExpense = null;
+  if (estimated_cost && parseFloat(estimated_cost) > 0) {
+    try {
+      createdExpense = await IntegrationService.createMaintenanceExpense(
+        { ...request.toJSON(), estimated_cost: parseFloat(estimated_cost) },
+        req.user.id
+      );
+      
+      logger.info(`Despesa automática criada: ${createdExpense.id} para manutenção ${id}`);
+      
+      // Atualizar status para in_progress após criar a despesa
+      await request.update({ status: 'in_progress' });
+      
+    } catch (error) {
+      logger.error('Erro ao criar despesa automática:', error);
+      // Continuar mesmo se falhar - não deve quebrar o fluxo principal
+    }
+  } else {
+    // Se não há custo, apenas muda para in_progress
+    await request.update({ status: 'in_progress' });
+  }
+
   // Notificar aprovação
   try {
+    const notificationMessage = estimated_cost && parseFloat(estimated_cost) > 0 
+      ? `Solicitação aprovada: ${request.title}. Despesa de R$ ${estimated_cost} criada automaticamente.`
+      : `Solicitação aprovada: ${request.title}`;
+      
     await notificationService.emitSystemNotification(
       request.condominium_id,
-      `Solicitação aprovada: ${request.title}`,
+      notificationMessage,
       'medium',
       null
     );
@@ -507,10 +535,27 @@ const approveMaintenanceRequest = asyncHandler(async (req, res) => {
     logger.warn('Erro ao enviar notificação de aprovação:', error);
   }
 
-  res.json({
+  const responseData = {
     success: true,
-    message: 'Solicitação de manutenção aprovada com sucesso'
-  });
+    message: 'Solicitação de manutenção aprovada com sucesso',
+    data: {
+      maintenance_request_id: id,
+      status: 'in_progress'
+    }
+  };
+
+  // Adicionar informações da despesa criada se existir
+  if (createdExpense) {
+    responseData.data.expense_created = {
+      transaction_id: createdExpense.id,
+      amount: createdExpense.amount,
+      due_date: createdExpense.due_date,
+      status: createdExpense.status
+    };
+    responseData.message += ` Despesa de R$ ${estimated_cost} criada automaticamente.`;
+  }
+
+  res.json(responseData);
 });
 
 // @desc    Rejeitar solicitação de manutenção

@@ -21,9 +21,11 @@ const maintenanceRoutes = require('./routes/maintenanceRoutes');
 const commonAreaRoutes = require('./routes/commonAreaRoutes');
 const commonAreaBookingRoutes = require('./routes/commonAreaBookingRoutes');
 const autoBillingRoutes = require('./routes/autoBillingRoutes');
+const integrationRoutes = require('./routes/integrationRoutes');
 
-// Importar scheduler
+// Importar scheduler e jobs de integração
 const Scheduler = require('./utils/scheduler');
+const IntegrationJobs = require('./jobs/integrationJobs');
 
 const app = express();
 const server = http.createServer(app);
@@ -142,6 +144,7 @@ app.use('/api/maintenance', maintenanceRoutes);
 app.use('/api/common-areas', commonAreaRoutes);
 app.use('/api/bookings', commonAreaBookingRoutes);
 app.use('/api/auto-billing', autoBillingRoutes);
+app.use('/api/integration', integrationRoutes);
 
 // API info endpoint
 app.get('/api', (req, res) => {
@@ -182,10 +185,14 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`🔐 Auth endpoints: http://localhost:${PORT}/api/auth`);
   console.log(`🔔 WebSocket notifications enabled`);
   
-  // Inicializar scheduler para cobrança automática
+  // Inicializar schedulers
   if (process.env.NODE_ENV !== 'test') {
     Scheduler.init();
     console.log(`⏰ Auto-billing scheduler initialized`);
+    
+    // Inicializar jobs de integração
+    IntegrationJobs.initializeJobs();
+    console.log(`🔗 Integration jobs initialized`);
   }
 });
 
