@@ -1,0 +1,135 @@
+services:
+  # Backend API - Development Mode
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: condominiogt-backend-dev
+    ports:
+      - "3001:3001"
+      - "9229:9229"  # Debug port
+    environment:
+      - NODE_ENV=development
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=condominiogt
+      - DB_USER=root
+      - DB_PASSWORD=condominiogt123
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET=condominiogt-jwt-secret-key-2024
+      - SMTP_HOST=smtp.gmail.com
+      - SMTP_PORT=587
+      - EMAIL_USER=admin@condominiogt.com
+      - EMAIL_PASS=your-app-password
+    volumes:
+      - ./backend:/app
+      - /app/node_modules  # Volume anônimo para node_modules
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - condominiogt-network
+    restart: unless-stopped
+    command: npx nodemon src/app.js  # Hot reload com nodemon
+
+  # Frontend React - Development Mode
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: condominiogt-frontend-dev
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:3001/api
+      - REACT_APP_ENV=development
+      - CHOKIDAR_USEPOLLING=true  # Para hot reload funcionar no Docker
+      - WATCHPACK_POLLING=true
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules  # Volume anônimo para node_modules
+    depends_on:
+      - backend
+    networks:
+      - condominiogt-network
+    restart: unless-stopped
+    stdin_open: true  # Para React scripts
+    tty: true
+
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: condominiogt-mysql-dev
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=condominiogt123
+      - MYSQL_DATABASE=condominiogt
+      - MYSQL_USER=condominiogt_user
+      - MYSQL_PASSWORD=condominiogt123
+    volumes:
+      - mysql_data_dev:/var/lib/mysql
+      - ./database/init:/docker-entrypoint-initdb.d
+      - ./database/backups:/backups
+    networks:
+      - condominiogt-network
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: condominiogt-redis-dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data_dev:/data
+    networks:
+      - condominiogt-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  # PhpMyAdmin (Development only)
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: condominiogt-phpmyadmin-dev
+    ports:
+      - "8080:80"
+    environment:
+      - PMA_HOST=mysql
+      - PMA_PORT=3306
+      - PMA_USER=root
+      - PMA_PASSWORD=condominiogt123
+    depends_on:
+      - mysql
+    networks:
+      - condominiogt-network
+    restart: unless-stopped
+
+  # Redis Commander (Development only)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: condominiogt-redis-commander-dev
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    depends_on:
+      - redis
+    networks:
+      - condominiogt-network
+    restart: unless-stopped
+
+volumes:
+  mysql_data_dev:
+    driver: local
+  redis_data_dev:
+    driver: local
+
+networks:
+  condominiogt-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

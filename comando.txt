@@ -1,0 +1,23 @@
+Olá Claude Code! 
+
+Preciso que você implemente o projeto CondominioGT seguindo EXATAMENTE as especificações dos arquivos README.md e PROGRESS.md.
+
+INFORMAÇÕES DO SISTEMA:
+- OS: Ubuntu
+- Usuário: ti-semdes  
+- Senha sudo: root
+- Você PODE usar comandos sudo quando necessário
+- Quando for solicitada senha sudo, a senha é: root
+
+INSTRUÇÕES OBRIGATÓRIAS:
+1. SEMPRE leia o arquivo PROGRESS.md PRIMEIRO antes de qualquer ação
+2. Siga as fases em ordem: Fase 1 → Fase 2 → Fase 3 → Fase 4
+3. Use Ubuntu + Docker (TUDO em containers - sem instalações locais)
+4. Use sudo quando necessário - senha: root
+5. Atualize o PROGRESS.md após CADA tarefa concluída
+
+CREDENCIAIS:
+- Usuário sudo: ti-semdes
+- Senha sudo: root
+
+Por favor, leia o PROGRESS.md primeiro e comece exatamente onde está indicado.

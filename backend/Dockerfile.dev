@@ -1,0 +1,21 @@
+# Backend Development Dockerfile
+FROM node:18-alpine
+
+# Install necessary packages
+RUN apk add --no-cache python3 make g++
+
+# Set working directory
+WORKDIR /app
+
+# Install dependencies first (for better caching)
+COPY package*.json ./
+RUN npm install --include=dev
+
+# Copy source code
+COPY . .
+
+# Expose ports (3001 for app, 9229 for debug)
+EXPOSE 3001 9229
+
+# Start development server with hot reload and debug
+CMD ["npm", "run", "dev"]

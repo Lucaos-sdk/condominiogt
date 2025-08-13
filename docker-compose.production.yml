@@ -1,0 +1,209 @@
+services:
+  # Nginx Reverse Proxy (Production)
+  nginx:
+    image: nginx:alpine
+    container_name: condominiogt-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/sites-available:/etc/nginx/sites-available:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/logs:/var/log/nginx
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - condominiogt-network
+    restart: unless-stopped
+
+  # Backend API (Production)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.production
+      args:
+        - NODE_ENV=production
+    container_name: condominiogt-backend
+    expose:
+      - "3001"
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=${DB_NAME:-condominiogt}
+      - DB_USER=${DB_USER:-condominiogt_user}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_PASS=${EMAIL_PASS}
+      - FRONTEND_URL=${FRONTEND_URL:-https://localhost}
+      - API_RATE_LIMIT=${API_RATE_LIMIT:-100}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - CORS_ORIGIN=${CORS_ORIGIN:-https://localhost}
+    volumes:
+      - backend_logs:/app/logs
+      - backend_uploads:/app/uploads
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - condominiogt-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend React (Production)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.production
+      args:
+        - REACT_APP_API_URL=${REACT_APP_API_URL:-https://localhost/api}
+        - REACT_APP_ENV=production
+        - REACT_APP_VERSION=${REACT_APP_VERSION:-1.0.0}
+    container_name: condominiogt-frontend
+    expose:
+      - "80"
+    environment:
+      - NGINX_HOST=${FRONTEND_HOST:-localhost}
+      - NGINX_PORT=80
+    volumes:
+      - frontend_logs:/var/log/nginx
+    depends_on:
+      - backend
+    networks:
+      - condominiogt-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # MySQL Database (Production)
+  mysql:
+    image: mysql:8.0
+    container_name: condominiogt-mysql
+    expose:
+      - "3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${DB_NAME:-condominiogt}
+      - MYSQL_USER=${DB_USER:-condominiogt_user}
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - mysql_logs:/var/log/mysql
+      - ./database/backups:/backups
+      - ./database/mysql.conf:/etc/mysql/conf.d/custom.cnf:ro
+    networks:
+      - condominiogt-network
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password --innodb-buffer-pool-size=512M --max-connections=200
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Redis Cache (Production)
+  redis:
+    image: redis:7-alpine
+    container_name: condominiogt-redis
+    expose:
+      - "6379"
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+      - redis_logs:/var/log/redis
+      - ./redis/redis.conf:/etc/redis/redis.conf:ro
+    networks:
+      - condominiogt-network
+    restart: unless-stopped
+    command: redis-server /etc/redis/redis.conf --requirepass ${REDIS_PASSWORD}
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Backup Service (Production)
+  backup:
+    build:
+      context: ./backup
+      dockerfile: Dockerfile
+    container_name: condominiogt-backup
+    environment:
+      - DB_HOST=mysql
+      - DB_NAME=${DB_NAME:-condominiogt}
+      - DB_USER=${DB_USER:-condominiogt_user}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-30}
+      - BACKUP_SCHEDULE=${BACKUP_SCHEDULE:-0 2 * * *}
+      - S3_BUCKET=${S3_BUCKET}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+    volumes:
+      - ./database/backups:/backups
+      - backup_logs:/var/log/backup
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - condominiogt-network
+    restart: unless-stopped
+
+  # Monitoring (Production)
+  watchtower:
+    image: containrrr/watchtower
+    container_name: condominiogt-watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=300
+      - WATCHTOWER_INCLUDE_RESTARTING=true
+      - WATCHTOWER_NOTIFICATIONS=${WATCHTOWER_NOTIFICATIONS:-slack}
+      - WATCHTOWER_NOTIFICATION_SLACK_HOOK_URL=${SLACK_WEBHOOK_URL}
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+    driver: local
+  mysql_logs:
+    driver: local
+  redis_data:
+    driver: local
+  redis_logs:
+    driver: local
+  backend_logs:
+    driver: local
+  backend_uploads:
+    driver: local
+  frontend_logs:
+    driver: local
+  backup_logs:
+    driver: local
+
+networks:
+  condominiogt-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+      driver: default

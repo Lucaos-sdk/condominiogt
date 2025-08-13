@@ -1,0 +1,80 @@
+# ================================
+# DOCKERFILE PRODUÇÃO - BACKEND
+# CondominioGT - Sistema de Gestão de Condomínios
+# ================================
+
+# Estágio 1: Build da aplicação
+FROM node:18-alpine AS builder
+
+# Instalar dependências do sistema
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    vips-dev
+
+# Definir diretório de trabalho
+WORKDIR /app
+
+# Copiar package.json e package-lock.json
+COPY package*.json ./
+
+# Instalar dependências (incluindo devDependencies para build)
+RUN npm ci --only=production && npm cache clean --force
+
+# Copiar código fonte
+COPY . .
+
+# ================================
+# Estágio 2: Imagem de produção
+FROM node:18-alpine AS production
+
+# Instalar dependências de runtime
+RUN apk add --no-cache \
+    vips \
+    dumb-init \
+    curl
+
+# Criar usuário não-root para segurança
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
+
+# Definir diretório de trabalho
+WORKDIR /app
+
+# Copiar dependências do estágio builder
+COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
+
+# Copiar aplicação
+COPY --chown=nodejs:nodejs . .
+
+# Criar diretórios necessários
+RUN mkdir -p logs uploads tmp && \
+    chown -R nodejs:nodejs logs uploads tmp
+
+# Configurar variáveis de ambiente
+ENV NODE_ENV=production
+ENV PORT=3001
+
+# Configurar usuário
+USER nodejs
+
+# Expor porta
+EXPOSE 3001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:3001/api/health || exit 1
+
+# Comando de inicialização com dumb-init para PID 1
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["node", "src/app.js"]
+
+# ================================
+# METADADOS DA IMAGEM
+# ================================
+LABEL maintainer="CondominioGT Team <admin@condominiogt.com>"
+LABEL version="1.0.0"
+LABEL description="CondominioGT Backend API - Produção"
+LABEL org.opencontainers.image.source="https://github.com/condominiogt/backend"
+LABEL org.opencontainers.image.documentation="https://github.com/condominiogt/backend/blob/main/README.md"
