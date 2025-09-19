@@ -24,13 +24,17 @@ module.exports = (sequelize, DataTypes) => {
     action_type: {
       type: DataTypes.ENUM(
         'resident_added',
-        'resident_removed', 
+        'resident_removed',
         'resident_updated',
         'status_changed',
         'owner_changed',
         'tenant_changed',
         'fee_changed',
-        'general_update'
+        'general_update',
+        'maintenance_request_created',
+        'maintenance_request_approved',
+        'maintenance_request_completed',
+        'maintenance_request_rejected'
       ),
       allowNull: false,
     },
@@ -60,6 +64,9 @@ module.exports = (sequelize, DataTypes) => {
     },
   }, {
     tableName: 'unit_history',
+    underscored: false,
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt',
     indexes: [
       {
         fields: ['unit_id'],

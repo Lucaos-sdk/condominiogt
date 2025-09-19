@@ -1,8 +1,7 @@
-const { MaintenanceRequest, Condominium, Unit, User, sequelize } = require('../models');
+const { MaintenanceRequest, Condominium, Unit, User, UnitHistory, sequelize } = require('../models');
 const { asyncHandler, logger } = require('../middleware/errorHandler');
 const { Op } = require('sequelize');
 const notificationService = require('../services/notificationService');
-const IntegrationService = require('../services/integrationService');
 
 // @desc    Obter todas as solicitações de manutenção
 // @route   GET /api/maintenance/requests
@@ -246,6 +245,26 @@ const createMaintenanceRequest = asyncHandler(async (req, res) => {
     images
   });
 
+  // Registrar no histórico da unidade se unit_id fornecido
+  if (unit_id) {
+    try {
+      await UnitHistory.create({
+        unit_id,
+        action_type: 'maintenance_request_created',
+        description: `Pedido de manutenção criado: ${title} (${category})`,
+        metadata: {
+          maintenance_request_id: request.id,
+          category,
+          priority,
+          estimated_cost
+        },
+        changed_by_user_id: req.user.id
+      });
+    } catch (error) {
+      logger.warn('Erro ao registrar histórico da unidade:', error);
+    }
+  }
+
   // Buscar a solicitação criada com relacionamentos
   const createdRequest = await MaintenanceRequest.findByPk(request.id, {
     include: [
@@ -346,7 +365,41 @@ const updateMaintenanceRequest = asyncHandler(async (req, res) => {
     updates.completed_date = new Date();
   }
 
+  const oldStatus = request.status;
   await request.update(updates);
+
+  // Registrar no histórico da unidade mudanças importantes de status
+  if (request.unit_id && updates.status && updates.status !== oldStatus) {
+    try {
+      let historyDescription = '';
+      let actionType = '';
+
+      if (updates.status === 'completed') {
+        actionType = 'maintenance_request_completed';
+        historyDescription = `Pedido de manutenção concluído: ${request.title}`;
+      } else if (updates.status === 'rejected') {
+        actionType = 'maintenance_request_rejected';
+        historyDescription = `Pedido de manutenção rejeitado: ${request.title}`;
+      }
+
+      if (actionType) {
+        await UnitHistory.create({
+          unit_id: request.unit_id,
+          action_type: actionType,
+          description: historyDescription,
+          metadata: {
+            maintenance_request_id: request.id,
+            old_status: oldStatus,
+            new_status: updates.status,
+            completion_date: updates.completed_date
+          },
+          changed_by_user_id: req.user.id
+        });
+      }
+    } catch (error) {
+      logger.warn('Erro ao registrar histórico da unidade:', error);
+    }
+  }
 
   // Buscar solicitação atualizada
   const updatedRequest = await MaintenanceRequest.findByPk(id, {
@@ -485,7 +538,7 @@ const approveMaintenanceRequest = asyncHandler(async (req, res) => {
   }
 
   await request.update({
-    status: 'approved', // Mudado para 'approved' para integração
+    status: 'in_progress',
     estimated_cost,
     assigned_to,
     assigned_contact,
@@ -494,30 +547,27 @@ const approveMaintenanceRequest = asyncHandler(async (req, res) => {
     admin_notes: admin_notes ? `${request.admin_notes || ''}\n[APROVAÇÃO] ${admin_notes}` : request.admin_notes
   });
 
-  logger.info(`Solicitação de manutenção aprovada: ${id} por usuário ${req.user.id}`);
-
-  // INTEGRAÇÃO AUTOMÁTICA: Criar despesa se há custo estimado
-  let createdExpense = null;
-  if (estimated_cost && parseFloat(estimated_cost) > 0) {
+  // Registrar no histórico da unidade se unit_id existir
+  if (request.unit_id) {
     try {
-      createdExpense = await IntegrationService.createMaintenanceExpense(
-        { ...request.toJSON(), estimated_cost: parseFloat(estimated_cost) },
-        req.user.id
-      );
-      
-      logger.info(`Despesa automática criada: ${createdExpense.id} para manutenção ${id}`);
-      
-      // Atualizar status para in_progress após criar a despesa
-      await request.update({ status: 'in_progress' });
-      
+      await UnitHistory.create({
+        unit_id: request.unit_id,
+        action_type: 'maintenance_request_approved',
+        description: `Pedido de manutenção aprovado: ${request.title}`,
+        metadata: {
+          maintenance_request_id: request.id,
+          assigned_to,
+          estimated_cost,
+          scheduled_date
+        },
+        changed_by_user_id: req.user.id
+      });
     } catch (error) {
-      logger.error('Erro ao criar despesa automática:', error);
-      // Continuar mesmo se falhar - não deve quebrar o fluxo principal
+      logger.warn('Erro ao registrar histórico da unidade:', error);
     }
-  } else {
-    // Se não há custo, apenas muda para in_progress
-    await request.update({ status: 'in_progress' });
   }
+
+  logger.info(`Solicitação de manutenção aprovada: ${id} por usuário ${req.user.id}`);
 
   // Notificar aprovação
   try {
@@ -544,16 +594,6 @@ const approveMaintenanceRequest = asyncHandler(async (req, res) => {
     }
   };
 
-  // Adicionar informações da despesa criada se existir
-  if (createdExpense) {
-    responseData.data.expense_created = {
-      transaction_id: createdExpense.id,
-      amount: createdExpense.amount,
-      due_date: createdExpense.due_date,
-      status: createdExpense.status
-    };
-    responseData.message += ` Despesa de R$ ${estimated_cost} criada automaticamente.`;
-  }
 
   res.json(responseData);
 });
@@ -593,6 +633,24 @@ const rejectMaintenanceRequest = asyncHandler(async (req, res) => {
     status: 'rejected',
     admin_notes: admin_notes ? `${request.admin_notes || ''}\n[REJEIÇÃO] ${admin_notes}` : request.admin_notes
   });
+
+  // Registrar no histórico da unidade se unit_id existir
+  if (request.unit_id) {
+    try {
+      await UnitHistory.create({
+        unit_id: request.unit_id,
+        action_type: 'maintenance_request_rejected',
+        description: `Pedido de manutenção rejeitado: ${request.title}`,
+        metadata: {
+          maintenance_request_id: request.id,
+          rejection_reason: admin_notes
+        },
+        changed_by_user_id: req.user.id
+      });
+    } catch (error) {
+      logger.warn('Erro ao registrar histórico da unidade:', error);
+    }
+  }
 
   logger.info(`Solicitação de manutenção rejeitada: ${id} por usuário ${req.user.id}`);
 
@@ -694,17 +752,17 @@ const getMaintenanceStats = asyncHandler(async (req, res) => {
       [sequelize.fn('COUNT', sequelize.literal('CASE WHEN status = "completed" THEN 1 END')), 'completed_count'],
       [sequelize.fn('COUNT', sequelize.literal('CASE WHEN status = "rejected" THEN 1 END')), 'rejected_count'],
       [sequelize.fn('AVG', sequelize.col('resident_rating')), 'average_rating'],
-      [sequelize.fn('SUM', sequelize.col('actual_cost')), 'total_cost'],
-      [sequelize.fn('AVG', sequelize.col('actual_cost')), 'average_cost']
+      [sequelize.fn('SUM', sequelize.col('estimated_cost')), 'total_estimated_cost'],
+      [sequelize.fn('AVG', sequelize.col('estimated_cost')), 'average_estimated_cost']
     ],
     raw: true
   });
 
-  // Estatísticas por categoria (excluindo concluídas e rejeitadas)
+  // Estatísticas por categoria (excluindo concluídas, rejeitadas e canceladas)
   const categoryWhereClause = {
     ...whereClause,
     status: {
-      [Op.notIn]: ['completed', 'rejected']
+      [Op.notIn]: ['completed', 'rejected', 'cancelled']
     }
   };
   
@@ -714,17 +772,17 @@ const getMaintenanceStats = asyncHandler(async (req, res) => {
       'category',
       [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
       [sequelize.fn('AVG', sequelize.col('resident_rating')), 'avg_rating'],
-      [sequelize.fn('SUM', sequelize.col('actual_cost')), 'total_cost']
+      [sequelize.fn('SUM', sequelize.col('estimated_cost')), 'total_estimated_cost']
     ],
     group: ['category'],
     raw: true
   });
 
-  // Estatísticas por prioridade (excluindo concluídas e rejeitadas)
+  // Estatísticas por prioridade (excluindo concluídas, rejeitadas e canceladas)
   const priorityWhereClause = {
     ...whereClause,
     status: {
-      [Op.notIn]: ['completed', 'rejected']
+      [Op.notIn]: ['completed', 'rejected', 'cancelled']
     }
   };
   
