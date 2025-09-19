@@ -172,6 +172,122 @@ function normalizeCEP(cep) {
   return cep.replace(/\D/g, '');
 }
 
+const { body, validationResult } = require('express-validator');
+
+/**
+ * Middleware para validar criação de pagamento de unidade
+ */
+const validateUnitPayment = [
+  body('reference_month')
+    .isInt({ min: 1, max: 12 })
+    .withMessage('Mês de referência deve ser entre 1 e 12'),
+  body('reference_year')
+    .isInt({ min: 2020, max: 2050 })
+    .withMessage('Ano de referência deve ser entre 2020 e 2050'),
+  body('due_date')
+    .isISO8601()
+    .withMessage('Data de vencimento deve ser uma data válida'),
+  body('amount')
+    .isFloat({ min: 0.01 })
+    .withMessage('Valor deve ser maior que zero'),
+  body('notes')
+    .optional()
+    .isLength({ max: 1000 })
+    .withMessage('Observações não podem exceder 1000 caracteres'),
+
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Dados inválidos',
+        errors: errors.array()
+      });
+    }
+    next();
+  }
+];
+
+/**
+ * Middleware para validar confirmação de pagamento
+ */
+const validatePaymentConfirmation = [
+  body('payment_date')
+    .optional()
+    .isISO8601()
+    .withMessage('Data de pagamento deve ser uma data válida'),
+  body('payment_method')
+    .optional()
+    .isIn(['cash', 'bank_transfer', 'pix', 'credit_card', 'debit_card', 'bank_slip', 'mixed'])
+    .withMessage('Método de pagamento inválido'),
+  body('amount_paid')
+    .optional()
+    .isFloat({ min: 0.01 })
+    .withMessage('Valor pago deve ser maior que zero'),
+  body('late_fee')
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage('Multa deve ser maior ou igual a zero'),
+  body('discount')
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage('Desconto deve ser maior ou igual a zero'),
+  body('notes')
+    .optional()
+    .isLength({ max: 1000 })
+    .withMessage('Observações não podem exceder 1000 caracteres'),
+
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Dados inválidos',
+        errors: errors.array()
+      });
+    }
+    next();
+  }
+];
+
+/**
+ * Middleware para validar geração mensal de pagamentos
+ */
+const validateMonthlyGeneration = [
+  body('reference_month')
+    .isInt({ min: 1, max: 12 })
+    .withMessage('Mês de referência deve ser entre 1 e 12'),
+  body('reference_year')
+    .isInt({ min: 2020, max: 2050 })
+    .withMessage('Ano de referência deve ser entre 2020 e 2050'),
+  body('due_date')
+    .isISO8601()
+    .withMessage('Data de vencimento deve ser uma data válida'),
+  body('amount')
+    .isFloat({ min: 0.01 })
+    .withMessage('Valor deve ser maior que zero'),
+  body('exclude_units')
+    .optional()
+    .isArray()
+    .withMessage('Unidades a excluir deve ser um array'),
+  body('exclude_units.*')
+    .optional()
+    .isInt()
+    .withMessage('IDs das unidades devem ser números inteiros'),
+
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Dados inválidos',
+        errors: errors.array()
+      });
+    }
+    next();
+  }
+];
+
 module.exports = {
   isValidCPF,
   isValidCNPJ,
@@ -181,5 +297,8 @@ module.exports = {
   normalizeCPF,
   normalizeCNPJ,
   normalizePhone,
-  normalizeCEP
+  normalizeCEP,
+  validateUnitPayment,
+  validatePaymentConfirmation,
+  validateMonthlyGeneration
 };

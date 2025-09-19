@@ -13,6 +13,8 @@ const UnitDetails = () => {
   const [residents, setResidents] = useState([]);
   const [history, setHistory] = useState([]);
   const [maintenanceRequests, setMaintenanceRequests] = useState([]);
+  const [payments, setPayments] = useState([]);
+  const [paymentSummary, setPaymentSummary] = useState(null);
   const [availableUsers, setAvailableUsers] = useState([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -38,7 +40,7 @@ const UnitDetails = () => {
 
   useEffect(() => {
     loadUnitDetails();
-  }, [id]);
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadUnitDetails = async () => {
     setLoading(true);
@@ -102,7 +104,7 @@ const UnitDetails = () => {
       // Carregar manutenções da unidade
       try {
         const maintenanceResponse = await maintenanceAPI.getRequests({ unit_id: id });
-        
+
         if (maintenanceResponse.data.success) {
           // O endpoint retorna {success: true, data: {requests: [...], pagination: {...}}}
           const maintenanceData = maintenanceResponse.data.data?.requests || maintenanceResponse.data.requests || [];
@@ -111,6 +113,28 @@ const UnitDetails = () => {
       } catch (error) {
         console.log('Aviso: Não foi possível carregar manutenções da unidade');
         setMaintenanceRequests([]);
+      }
+
+      // Carregar pagamentos da unidade
+      try {
+        const [paymentsResponse, summaryResponse] = await Promise.all([
+          unitAPI.getPayments(id, { limit: 12 }),
+          unitAPI.getPaymentSummary(id)
+        ]);
+
+        if (paymentsResponse.data.success) {
+          const paymentsData = paymentsResponse.data.data?.payments || paymentsResponse.data.payments || [];
+          setPayments(paymentsData);
+        }
+
+        if (summaryResponse.data.success) {
+          const summaryData = summaryResponse.data.data?.summary || summaryResponse.data.summary || null;
+          setPaymentSummary(summaryData);
+        }
+      } catch (error) {
+        console.log('Aviso: Não foi possível carregar pagamentos da unidade');
+        setPayments([]);
+        setPaymentSummary(null);
       }
 
       setError('');
@@ -414,6 +438,7 @@ const UnitDetails = () => {
             {[
               { id: 'overview', label: 'Visão Geral', icon: '🏠' },
               { id: 'residents', label: 'Moradores', icon: '👥' },
+              { id: 'payments', label: 'Pagamentos', icon: '💰' },
               { id: 'history', label: 'Histórico', icon: '📋' },
               { id: 'maintenance', label: 'Manutenções', icon: '🔧' }
             ].map((tab) => (
@@ -692,6 +717,240 @@ const UnitDetails = () => {
                   <p className="text-gray-500">Nenhum morador cadastrado</p>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'payments' && (
+          <div className="space-y-6">
+            {/* Resumo de Pagamentos */}
+            {paymentSummary && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="bg-white rounded-lg shadow p-6">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0">
+                      <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                        <span className="text-green-600 text-sm">✓</span>
+                      </div>
+                    </div>
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-gray-600">Pagamentos em Dia</p>
+                      <p className="text-2xl font-semibold text-gray-900">{paymentSummary.paid_count}</p>
+                      <p className="text-sm text-green-600">R$ {parseFloat(paymentSummary.total_paid || 0).toFixed(2)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-lg shadow p-6">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0">
+                      <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+                        <span className="text-red-600 text-sm">!</span>
+                      </div>
+                    </div>
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-gray-600">Em Atraso</p>
+                      <p className="text-2xl font-semibold text-gray-900">{paymentSummary.overdue_count}</p>
+                      <p className="text-sm text-red-600">R$ {parseFloat(paymentSummary.total_overdue || 0).toFixed(2)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-lg shadow p-6">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0">
+                      <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
+                        <span className="text-yellow-600 text-sm">⏳</span>
+                      </div>
+                    </div>
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-gray-600">Pendentes</p>
+                      <p className="text-2xl font-semibold text-gray-900">{paymentSummary.pending_count}</p>
+                      <p className="text-sm text-yellow-600">R$ {parseFloat(paymentSummary.total_pending || 0).toFixed(2)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-lg shadow p-6">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0">
+                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                        <span className="text-blue-600 text-sm">📊</span>
+                      </div>
+                    </div>
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-gray-600">Total</p>
+                      <p className="text-2xl font-semibold text-gray-900">{paymentSummary.total_payments}</p>
+                      <p className="text-sm text-blue-600">
+                        R$ {(parseFloat(paymentSummary.total_paid || 0) + parseFloat(paymentSummary.total_overdue || 0) + parseFloat(paymentSummary.total_pending || 0)).toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Próximo Vencimento e Último Pagamento */}
+            {paymentSummary && (paymentSummary.next_due || paymentSummary.last_payment) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {paymentSummary.next_due && (
+                  <div className="bg-white rounded-lg shadow p-6">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Próximo Vencimento</h3>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Referência:</span>
+                        <span className="font-medium">
+                          {paymentSummary.next_due.reference_month}/{paymentSummary.next_due.reference_year}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Vencimento:</span>
+                        <span className="font-medium">
+                          {paymentSummary.next_due.due_date ? new Date(paymentSummary.next_due.due_date).toLocaleDateString('pt-BR') : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Valor:</span>
+                        <span className="font-medium">R$ {parseFloat(paymentSummary.next_due.total_amount || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Status:</span>
+                        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                          paymentSummary.next_due.detailed_status?.color === 'success' ? 'bg-green-100 text-green-800' :
+                          paymentSummary.next_due.detailed_status?.color === 'warning' ? 'bg-yellow-100 text-yellow-800' :
+                          paymentSummary.next_due.detailed_status?.color === 'danger' ? 'bg-red-100 text-red-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {paymentSummary.next_due.detailed_status?.label}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {paymentSummary.last_payment && (
+                  <div className="bg-white rounded-lg shadow p-6">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Último Pagamento</h3>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Referência:</span>
+                        <span className="font-medium">
+                          {paymentSummary.last_payment.reference_month}/{paymentSummary.last_payment.reference_year}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Data:</span>
+                        <span className="font-medium">
+                          {paymentSummary.last_payment.payment_date ? new Date(paymentSummary.last_payment.payment_date).toLocaleDateString('pt-BR') : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Valor:</span>
+                        <span className="font-medium">R$ {parseFloat(paymentSummary.last_payment.total_amount || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Método:</span>
+                        <span className="font-medium">
+                          {paymentSummary.last_payment.financial_transaction?.payment_method || 'N/A'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Lista de Pagamentos */}
+            <div className="bg-white rounded-lg shadow">
+              <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <h2 className="text-lg font-medium text-gray-900">Histórico de Pagamentos</h2>
+                {canManageUnit() && (
+                  <button
+                    onClick={() => {
+                      // TODO: Implementar modal de novo pagamento
+                      console.log('Criar novo pagamento');
+                    }}
+                    className="px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-green-600 hover:bg-green-700"
+                  >
+                    Gerar Cobrança
+                  </button>
+                )}
+              </div>
+
+              <div className="divide-y divide-gray-200">
+                {payments.length > 0 ? payments.map((payment) => (
+                  <div key={payment.id} className="px-6 py-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-sm font-medium text-gray-900">
+                            Condomínio {payment.reference_month}/{payment.reference_year}
+                          </h3>
+                          <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                            payment.detailed_status?.color === 'success' ? 'bg-green-100 text-green-800' :
+                            payment.detailed_status?.color === 'warning' ? 'bg-yellow-100 text-yellow-800' :
+                            payment.detailed_status?.color === 'danger' ? 'bg-red-100 text-red-800' :
+                            payment.detailed_status?.color === 'info' ? 'bg-blue-100 text-blue-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {payment.detailed_status?.label || payment.status}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {payment.detailed_status?.description || 'Sem descrição adicional'}
+                        </p>
+                        <div className="flex items-center mt-2 text-xs text-gray-500">
+                          <span>Vencimento: {payment.due_date ? new Date(payment.due_date).toLocaleDateString('pt-BR') : 'N/A'}</span>
+                          <span className="mx-2">•</span>
+                          <span>Valor: R$ {parseFloat(payment.total_amount || 0).toFixed(2)}</span>
+                          {payment.payment_date && (
+                            <>
+                              <span className="mx-2">•</span>
+                              <span>Pago em: {payment.payment_date ? new Date(payment.payment_date).toLocaleDateString('pt-BR') : 'N/A'}</span>
+                            </>
+                          )}
+                          {payment.days_overdue && payment.days_overdue > 0 && (
+                            <>
+                              <span className="mx-2">•</span>
+                              <span className="text-red-600">{payment.days_overdue} dias em atraso</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {canManageUnit() && payment.status !== 'paid' && (
+                        <div className="flex items-center space-x-2 ml-4">
+                          <button
+                            onClick={() => {
+                              // TODO: Implementar modal de confirmar pagamento
+                              console.log('Confirmar pagamento:', payment.id);
+                            }}
+                            className="text-green-600 hover:text-green-900 text-sm"
+                          >
+                            Confirmar Pagamento
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )) : (
+                  <div className="px-6 py-12 text-center">
+                    <span className="text-4xl mb-4 block">💰</span>
+                    <p className="text-gray-500 mb-4">Nenhum pagamento registrado</p>
+                    {canManageUnit() && (
+                      <button
+                        onClick={() => {
+                          // TODO: Implementar modal de novo pagamento
+                          console.log('Criar primeiro pagamento');
+                        }}
+                        className="px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-green-600 hover:bg-green-700"
+                      >
+                        Gerar Primeira Cobrança
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}

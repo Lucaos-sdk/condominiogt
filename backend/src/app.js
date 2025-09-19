@@ -14,6 +14,7 @@ const { errorHandler, notFound } = require('./middleware/errorHandler');
 const authRoutes = require('./routes/authRoutes');
 const condominiumRoutes = require('./routes/condominiumRoutes');
 const unitRoutes = require('./routes/unitRoutes');
+const unitPaymentRoutes = require('./routes/unitPaymentRoutes');
 const userRoutes = require('./routes/userRoutes');
 const communicationRoutes = require('./routes/communicationRoutes');
 const financialRoutes = require('./routes/financialRoutes');
@@ -227,6 +228,7 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/condominiums', condominiumRoutes);
 app.use('/api/units', unitRoutes);
+app.use('/api', unitPaymentRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/communications', communicationRoutes);
 app.use('/api/financial', financialRoutes);

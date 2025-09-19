@@ -1,4 +1,4 @@
-const { FinancialTransaction, Condominium, Unit, User, sequelize } = require('../models');
+const { FinancialTransaction, Condominium, Unit, User, UnitPayment, sequelize } = require('../models');
 const { asyncHandler, logger } = require('../middleware/errorHandler');
 const { Op } = require('sequelize');
 const notificationService = require('../services/notificationService');
@@ -88,7 +88,8 @@ const getTransactions = asyncHandler(async (req, res) => {
     if (date_to) whereClause.due_date[Op.lte] = new Date(date_to);
   }
 
-  const { count, rows: transactions } = await FinancialTransaction.findAndCountAll({
+  // Buscar transações financeiras tradicionais
+  const { count: transactionCount, rows: transactions } = await FinancialTransaction.findAndCountAll({
     where: whereClause,
     include: [
       {
@@ -122,17 +123,116 @@ const getTransactions = asyncHandler(async (req, res) => {
         attributes: ['id', 'name', 'role']
       }
     ],
-    order: [['created_at', 'DESC']],
-    limit: parseInt(limit),
-    offset: parseInt(offset)
+    order: [['created_at', 'DESC']]
   });
 
-  logger.info(`Transações financeiras consultadas por usuário ${req.user.id}: ${count} registros`);
+  // Buscar pagamentos de unidades (que são de entrada/income por natureza)
+  const unitPaymentWhereClause = {};
+
+  // Aplicar os mesmos filtros de condomínio
+  if (whereClause.condominium_id) {
+    unitPaymentWhereClause.condominium_id = whereClause.condominium_id;
+  }
+
+  // Filtrar por unidade se especificado
+  if (unit_id) {
+    unitPaymentWhereClause.unit_id = unit_id;
+  }
+
+  // Buscar apenas se for income ou não especificado
+  let unitPayments = [];
+  if (!type || type === 'income') {
+    const { rows: payments } = await UnitPayment.findAndCountAll({
+      where: unitPaymentWhereClause,
+      include: [
+        {
+          model: Condominium,
+          as: 'condominium',
+          attributes: ['id', 'name']
+        },
+        {
+          model: Unit,
+          as: 'unit',
+          attributes: ['id', 'number', 'floor', 'type']
+        }
+      ],
+      order: [['created_at', 'DESC']]
+    });
+
+    // Converter pagamentos de unidades para formato de transação financeira
+    unitPayments = payments.map(payment => ({
+      id: `unit_payment_${payment.id}`,
+      type: 'income',
+      category: 'condominium_fee',
+      description: `Condomínio ${payment.reference_month}/${payment.reference_year} - Unidade ${payment.unit?.number || payment.unit_id}`,
+      amount: payment.total_amount,
+      due_date: payment.due_date,
+      paid_date: payment.payment_date,
+      status: payment.status,
+      payment_method: payment.payment_method,
+      reference_month: payment.reference_month,
+      reference_year: payment.reference_year,
+      late_fee: payment.late_fee,
+      discount: payment.discount,
+      total_amount: payment.total_amount,
+      notes: payment.notes,
+      condominium_id: payment.condominium_id,
+      unit_id: payment.unit_id,
+      created_at: payment.createdAt,
+      updated_at: payment.updatedAt,
+      // Relacionamentos
+      condominium: payment.condominium,
+      unit: payment.unit,
+      user: null,
+      creator: null,
+      approver: null,
+      cash_confirmer: null,
+      // Marcadores especiais
+      is_unit_payment: true,
+      unit_payment_id: payment.id,
+      financial_transaction_id: payment.financial_transaction_id
+    }));
+  }
+
+  // Combinar e ordenar todas as transações
+  const allTransactions = [...transactions, ...unitPayments];
+  allTransactions.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  // Aplicar filtros adicionais nos dados combinados
+  let filteredTransactions = allTransactions;
+
+  if (search) {
+    filteredTransactions = allTransactions.filter(transaction =>
+      transaction.description?.toLowerCase().includes(search.toLowerCase()) ||
+      transaction.invoice_number?.toLowerCase().includes(search.toLowerCase()) ||
+      transaction.notes?.toLowerCase().includes(search.toLowerCase())
+    );
+  }
+
+  if (status) {
+    filteredTransactions = filteredTransactions.filter(transaction => transaction.status === status);
+  }
+
+  if (payment_method) {
+    filteredTransactions = filteredTransactions.filter(transaction => transaction.payment_method === payment_method);
+  }
+
+  if (category) {
+    filteredTransactions = filteredTransactions.filter(transaction => transaction.category === category);
+  }
+
+  // Aplicar paginação
+  const totalCount = filteredTransactions.length;
+  const paginatedTransactions = filteredTransactions.slice(parseInt(offset), parseInt(offset) + parseInt(limit));
+
+  const count = totalCount;
+
+  logger.info(`Transações financeiras consultadas por usuário ${req.user.id}: ${count} registros (incluindo pagamentos de unidades)`);
 
   res.json({
     success: true,
     data: {
-      transactions,
+      transactions: paginatedTransactions,
       pagination: {
         total: count,
         pages: Math.ceil(count / limit),

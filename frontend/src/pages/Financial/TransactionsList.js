@@ -21,7 +21,8 @@ const TransactionsList = () => {
     payment_method: '',
     condominium_id: '',
     date_from: '',
-    date_to: ''
+    date_to: '',
+    source: '' // 'unit_payments', 'transactions', '' (todos)
   });
 
   useEffect(() => {
@@ -30,7 +31,7 @@ const TransactionsList = () => {
 
   useEffect(() => {
     loadTransactions();
-  }, [filters]);
+  }, [filters]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadCondominiums = async () => {
     try {
@@ -56,11 +57,33 @@ const TransactionsList = () => {
         return acc;
       }, {});
 
-      const response = await financialAPI.getTransactions(cleanFilters);
+      // Separar filtro 'source' para aplicação no frontend
+      const { source, ...backendFilters } = cleanFilters;
+
+      const response = await financialAPI.getTransactions(backendFilters);
       if (response.data.success) {
         const data = response.data.data || response.data;
-        setTransactions(data.transactions || []);
-        setPagination(data.pagination || {});
+        let transactions = data.transactions || [];
+
+        // Aplicar filtro de origem no frontend
+        if (source) {
+          if (source === 'unit_payments') {
+            transactions = transactions.filter(t => t.is_unit_payment);
+          } else if (source === 'transactions') {
+            transactions = transactions.filter(t => !t.is_unit_payment);
+          }
+        }
+
+        setTransactions(transactions);
+
+        // Ajustar paginação considerando o filtro aplicado
+        const adjustedPagination = source ? {
+          ...data.pagination,
+          total: transactions.length,
+          pages: Math.ceil(transactions.length / (backendFilters.limit || 20))
+        } : data.pagination;
+
+        setPagination(adjustedPagination || {});
         setError('');
       } else {
         setError('Erro ao carregar transações');
@@ -96,7 +119,8 @@ const TransactionsList = () => {
       payment_method: '',
       condominium_id: '',
       date_from: '',
-      date_to: ''
+      date_to: '',
+      source: ''
     });
   };
 
@@ -244,6 +268,22 @@ const TransactionsList = () => {
               </select>
             </div>
 
+            {/* Origem */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Origem
+              </label>
+              <select
+                value={filters.source}
+                onChange={(e) => handleFilterChange('source', e.target.value)}
+                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              >
+                <option value="">Todas</option>
+                <option value="unit_payments">💰 Pagamentos de Unidades</option>
+                <option value="transactions">🏦 Transações Tradicionais</option>
+              </select>
+            </div>
+
             {/* Status */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -348,12 +388,22 @@ const TransactionsList = () => {
                       <tr key={transaction.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div>
-                            <div className="text-sm font-medium text-gray-900">
+                            <div className="text-sm font-medium text-gray-900 flex items-center">
                               {transaction.description}
+                              {transaction.is_unit_payment && (
+                                <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                  💰 Pagamento Unidade
+                                </span>
+                              )}
                             </div>
                             <div className="text-sm text-gray-500">
                               {getCategoryLabel(transaction.category)}
                               {transaction.unit && ` • Unidade ${transaction.unit.number}`}
+                              {transaction.is_unit_payment && transaction.reference_month && (
+                                <span className="text-blue-600">
+                                  {` • Referência: ${transaction.reference_month}/${transaction.reference_year}`}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </td>
@@ -384,19 +434,47 @@ const TransactionsList = () => {
                           {new Date(transaction.due_date).toLocaleDateString('pt-BR')}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <button
-                            onClick={() => window.location.href = `/financeiro/transacoes/${transaction.id}`}
-                            className="text-blue-600 hover:text-blue-900 mr-3"
-                          >
-                            Ver
-                          </button>
-                          {(user.role === 'admin' || transaction.created_by === user.id) && (
-                            <button
-                              onClick={() => window.location.href = `/financeiro/transacoes/${transaction.id}/editar`}
-                              className="text-green-600 hover:text-green-900"
-                            >
-                              Editar
-                            </button>
+                          {transaction.is_unit_payment ? (
+                            // Ações específicas para pagamentos de unidades
+                            <>
+                              <button
+                                onClick={() => window.location.href = `/unidades/${transaction.unit_id}`}
+                                className="text-blue-600 hover:text-blue-900 mr-3"
+                                title="Ver detalhes da unidade"
+                              >
+                                Ver Unidade
+                              </button>
+                              {transaction.status !== 'paid' && ['admin', 'manager', 'syndic'].includes(user.role) && (
+                                <button
+                                  onClick={() => {
+                                    // TODO: Implementar modal para confirmar pagamento
+                                    console.log('Confirmar pagamento da unidade:', transaction.unit_payment_id);
+                                  }}
+                                  className="text-green-600 hover:text-green-900"
+                                  title="Confirmar pagamento"
+                                >
+                                  Confirmar
+                                </button>
+                              )}
+                            </>
+                          ) : (
+                            // Ações para transações financeiras tradicionais
+                            <>
+                              <button
+                                onClick={() => window.location.href = `/financeiro/transacoes/${transaction.id}`}
+                                className="text-blue-600 hover:text-blue-900 mr-3"
+                              >
+                                Ver
+                              </button>
+                              {(user.role === 'admin' || transaction.created_by === user.id) && (
+                                <button
+                                  onClick={() => window.location.href = `/financeiro/transacoes/${transaction.id}/editar`}
+                                  className="text-green-600 hover:text-green-900"
+                                >
+                                  Editar
+                                </button>
+                              )}
+                            </>
                           )}
                         </td>
                       </tr>

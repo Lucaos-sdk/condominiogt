@@ -98,6 +98,11 @@ export const unitAPI = {
   
   // Debug endpoint
   debugDelete: (id) => api.post('/units/debug-delete', { id }),
+
+  // Pagamentos da unidade
+  getPayments: (unitId, params) => api.get(`/units/${unitId}/payments`, { params }),
+  getPaymentSummary: (unitId) => api.get(`/units/${unitId}/payments/summary`),
+  createPayment: (unitId, data) => api.post(`/units/${unitId}/payments`, data),
 };
 
 export const financialAPI = {
@@ -165,10 +170,16 @@ export const communicationAPI = {
   update: (id, data) => api.put(`/communications/${id}`, data),
   delete: (id) => api.delete(`/communications/${id}`),
   like: (id) => api.post(`/communications/${id}/like`),
-  getByCondominium: (condominiumId, params) => 
+  getByCondominium: (condominiumId, params) =>
     api.get(`/communications/condominium/${condominiumId}`, { params }),
-  getStats: (condominiumId, params) => 
+  getStats: (condominiumId, params) =>
     api.get(`/communications/stats/${condominiumId}`, { params }),
+};
+
+export const unitPaymentAPI = {
+  markAsPaid: (id, data) => api.post(`/unit-payments/${id}/pay`, data),
+  generateMonthlyPayments: (condominiumId, data) =>
+    api.post(`/condominiums/${condominiumId}/generate-payments`, data),
 };
 
 // Export default api instance for backward compatibility
