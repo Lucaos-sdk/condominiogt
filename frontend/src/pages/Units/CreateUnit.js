@@ -18,6 +18,7 @@ const CreateUnit = () => {
 
   const [formData, setFormData] = useState({
     number: '',
+    block: '',
     floor: '',
     type: 'apartment',
     status: 'vacant',
@@ -30,7 +31,10 @@ const CreateUnit = () => {
     monthly_fee: '',
     resident_user_id: '',
     payment_due_day: 10,
-    auto_billing_enabled: false
+    auto_billing_enabled: false,
+    pet_allowed: false,
+    furnished: false,
+    balcony: false
   });
 
   useEffect(() => {
@@ -89,23 +93,30 @@ const CreateUnit = () => {
   const loadUnitData = async () => {
     try {
       const response = await unitAPI.getById(id);
+      console.log('🔍 CreateUnit - Response completa:', response.data);
       if (response.data.success) {
-        const unitData = response.data.data || response.data.unit;
+        const unitData = response.data.data?.unit || response.data.unit;
+        console.log('🔍 CreateUnit - Unit data extraída:', unitData);
+        console.log('🔍 CreateUnit - Floor:', unitData?.floor, 'Bedrooms:', unitData?.bedrooms, 'Bathrooms:', unitData?.bathrooms, 'Parking:', unitData?.parking_spots);
         setFormData({
           number: unitData.number || '',
-          floor: unitData.floor || '',
+          block: unitData.block || '',
+          floor: unitData.floor !== null && unitData.floor !== undefined ? unitData.floor.toString() : '',
           type: unitData.type || 'apartment',
           status: unitData.status || 'vacant',
           condominium_id: unitData.condominium_id ? unitData.condominium_id.toString() : '',
-          area: unitData.area || '',
-          bedrooms: unitData.bedrooms || '',
-          bathrooms: unitData.bathrooms || '',
-          parking_spots: unitData.parking_spots || '',
+          area: unitData.area !== null && unitData.area !== undefined ? unitData.area.toString() : '',
+          bedrooms: unitData.bedrooms !== null && unitData.bedrooms !== undefined ? unitData.bedrooms.toString() : '',
+          bathrooms: unitData.bathrooms !== null && unitData.bathrooms !== undefined ? unitData.bathrooms.toString() : '',
+          parking_spots: unitData.parking_spots !== null && unitData.parking_spots !== undefined ? unitData.parking_spots.toString() : '',
           description: unitData.description || '',
           monthly_fee: unitData.condominium_fee || unitData.monthly_amount || '',
           resident_user_id: unitData.resident_user_id ? unitData.resident_user_id.toString() : '',
           payment_due_day: unitData.payment_due_day || 10,
-          auto_billing_enabled: unitData.auto_billing_enabled || false
+          auto_billing_enabled: unitData.auto_billing_enabled || false,
+          pet_allowed: unitData.pet_allowed || false,
+          furnished: unitData.furnished || false,
+          balcony: unitData.balcony || false
         });
       }
     } catch (error) {
@@ -191,7 +202,10 @@ const CreateUnit = () => {
         floor: formData.floor ? parseInt(formData.floor) : null,
         resident_user_id: formData.resident_user_id ? parseInt(formData.resident_user_id) : null,
         payment_due_day: formData.payment_due_day ? parseInt(formData.payment_due_day) : null,
-        auto_billing_enabled: formData.auto_billing_enabled
+        auto_billing_enabled: formData.auto_billing_enabled,
+        pet_allowed: formData.pet_allowed,
+        furnished: formData.furnished,
+        balcony: formData.balcony
       };
 
       const response = isEditing 
@@ -279,7 +293,7 @@ const CreateUnit = () => {
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-medium text-gray-900 mb-4">Informações Básicas</h2>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Número da Unidade *
@@ -313,6 +327,20 @@ const CreateUnit = () => {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Bloco
+                </label>
+                <input
+                  type="text"
+                  name="block"
+                  value={formData.block}
+                  onChange={handleInputChange}
+                  placeholder="Ex: A, B, C, Torre 1"
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                />
               </div>
 
               <div>
@@ -386,8 +414,8 @@ const CreateUnit = () => {
           {/* Detalhes da Unidade */}
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-medium text-gray-900 mb-4">Detalhes da Unidade</h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Quartos
@@ -431,6 +459,75 @@ const CreateUnit = () => {
                   placeholder="Ex: 1"
                   className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 />
+              </div>
+            </div>
+
+            {/* Características da Unidade */}
+            <div className="border-t pt-6">
+              <h3 className="text-md font-medium text-gray-900 mb-4">Características</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Mobilado
+                  </label>
+                  <label className="inline-flex items-center">
+                    <input
+                      type="checkbox"
+                      name="furnished"
+                      checked={formData.furnished}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        furnished: e.target.checked
+                      }))}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <span className="ml-2 text-sm text-gray-700">
+                      Unidade é mobilada
+                    </span>
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Pets Permitidos
+                  </label>
+                  <label className="inline-flex items-center">
+                    <input
+                      type="checkbox"
+                      name="pet_allowed"
+                      checked={formData.pet_allowed}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        pet_allowed: e.target.checked
+                      }))}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <span className="ml-2 text-sm text-gray-700">
+                      Permite animais de estimação
+                    </span>
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Varanda
+                  </label>
+                  <label className="inline-flex items-center">
+                    <input
+                      type="checkbox"
+                      name="balcony"
+                      checked={formData.balcony}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        balcony: e.target.checked
+                      }))}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <span className="ml-2 text-sm text-gray-700">
+                      Possui varanda
+                    </span>
+                  </label>
+                </div>
               </div>
             </div>
           </div>

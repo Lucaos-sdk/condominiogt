@@ -254,7 +254,10 @@ const createUnit = asyncHandler(async (req, res) => {
     resident_user_id,
     monthly_amount,
     payment_due_day,
-    auto_billing_enabled
+    auto_billing_enabled,
+    pet_allowed,
+    furnished,
+    balcony
   } = req.body;
 
   // Verificar se condomínio existe
@@ -377,7 +380,10 @@ const createUnit = asyncHandler(async (req, res) => {
     resident_user_id,
     monthly_amount,
     payment_due_day,
-    auto_billing_enabled: auto_billing_enabled || false
+    auto_billing_enabled: auto_billing_enabled || false,
+    pet_allowed: pet_allowed || false,
+    furnished: furnished || false,
+    balcony: balcony || false
   });
 
   // Buscar unidade criada com relacionamentos
@@ -433,7 +439,10 @@ const updateUnit = asyncHandler(async (req, res) => {
     resident_user_id,
     monthly_amount,
     payment_due_day,
-    auto_billing_enabled
+    auto_billing_enabled,
+    pet_allowed,
+    furnished,
+    balcony
   } = req.body;
 
   const unit = await Unit.findByPk(id, {
@@ -573,6 +582,9 @@ const updateUnit = asyncHandler(async (req, res) => {
   if (monthly_amount !== undefined) updateData.monthly_amount = monthly_amount;
   if (payment_due_day !== undefined) updateData.payment_due_day = payment_due_day;
   if (auto_billing_enabled !== undefined) updateData.auto_billing_enabled = auto_billing_enabled;
+  if (pet_allowed !== undefined) updateData.pet_allowed = pet_allowed;
+  if (furnished !== undefined) updateData.furnished = furnished;
+  if (balcony !== undefined) updateData.balcony = balcony;
 
   await unit.update(updateData);
 

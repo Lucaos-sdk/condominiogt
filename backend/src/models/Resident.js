@@ -86,6 +86,9 @@ module.exports = (sequelize, DataTypes) => {
     },
   }, {
     tableName: 'residents',
+    underscored: false,
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt',
     indexes: [
       {
         fields: ['unit_id'],

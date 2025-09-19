@@ -22,6 +22,7 @@ describe('Auth Controller Tests', () => {
       city: 'Test City',
       state: 'TS',
       zip_code: '12345678',
+      total_units: 50,
       status: 'active'
     });
 

@@ -21,11 +21,9 @@ const maintenanceRoutes = require('./routes/maintenanceRoutes');
 const commonAreaRoutes = require('./routes/commonAreaRoutes');
 const commonAreaBookingRoutes = require('./routes/commonAreaBookingRoutes');
 const autoBillingRoutes = require('./routes/autoBillingRoutes');
-const integrationRoutes = require('./routes/integrationRoutes');
 
-// Importar scheduler e jobs de integração
+// Importar scheduler
 const Scheduler = require('./utils/scheduler');
-const IntegrationJobs = require('./jobs/integrationJobs');
 
 const app = express();
 const server = http.createServer(app);
@@ -144,7 +142,8 @@ app.use(cors({
 // Middleware adicional para CORS em desenvolvimento
 if (process.env.NODE_ENV !== 'production') {
   app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', req.headers.origin);
+    const origin = req.headers.origin || 'http://localhost:3000';
+    res.header('Access-Control-Allow-Origin', origin);
     res.header('Access-Control-Allow-Credentials', 'true');
     res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, X-File-Name');
@@ -235,7 +234,6 @@ app.use('/api/maintenance', maintenanceRoutes);
 app.use('/api/common-areas', commonAreaRoutes);
 app.use('/api/bookings', commonAreaBookingRoutes);
 app.use('/api/auto-billing', autoBillingRoutes);
-app.use('/api/integration', integrationRoutes);
 
 // API info endpoint
 app.get('/api', (req, res) => {
@@ -281,9 +279,6 @@ server.listen(PORT, '0.0.0.0', () => {
     Scheduler.init();
     console.log(`⏰ Auto-billing scheduler initialized`);
     
-    // Inicializar jobs de integração
-    IntegrationJobs.initializeJobs();
-    console.log(`🔗 Integration jobs initialized`);
   }
 });
 

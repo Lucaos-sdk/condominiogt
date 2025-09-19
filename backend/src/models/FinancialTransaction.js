@@ -217,34 +217,6 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
       comment: 'Saldo após a transação para auditoria'
     },
-    // Campos para integração com manutenção
-    maintenance_request_id: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-      references: {
-        model: 'maintenance_requests',
-        key: 'id',
-      },
-    },
-    is_recurring: {
-      type: DataTypes.BOOLEAN,
-      allowNull: false,
-      defaultValue: false,
-    },
-    auto_generated: {
-      type: DataTypes.BOOLEAN,
-      allowNull: false,
-      defaultValue: false,
-    },
-    original_due_date: {
-      type: DataTypes.DATEONLY,
-      allowNull: true,
-    },
-    recurrence_type: {
-      type: DataTypes.ENUM('monthly', 'quarterly', 'semiannual', 'annual', 'one_time'),
-      allowNull: false,
-      defaultValue: 'one_time',
-    },
   }, {
     tableName: 'financial_transactions',
     indexes: [
@@ -315,11 +287,6 @@ module.exports = (sequelize, DataTypes) => {
       as: 'cash_confirmer',
     });
 
-    // Relacionamento com MaintenanceRequest
-    FinancialTransaction.belongsTo(models.MaintenanceRequest, {
-      foreignKey: 'maintenance_request_id',
-      as: 'maintenanceRequest',
-    });
   };
 
   return FinancialTransaction;

@@ -1,3 +1,5 @@
+const { isValidCPF, isValidBrazilianPhone } = require('../utils/validators');
+
 module.exports = (sequelize, DataTypes) => {
   const Unit = sequelize.define('Unit', {
     id: {
@@ -61,10 +63,24 @@ module.exports = (sequelize, DataTypes) => {
     owner_phone: {
       type: DataTypes.STRING,
       allowNull: true,
+      validate: {
+        isValidPhoneFormat(value) {
+          if (value && !isValidBrazilianPhone(value)) {
+            throw new Error('Telefone do proprietário inválido');
+          }
+        }
+      }
     },
     owner_cpf: {
       type: DataTypes.STRING(11),
       allowNull: true,
+      validate: {
+        isValidCPFFormat(value) {
+          if (value && !isValidCPF(value)) {
+            throw new Error('CPF do proprietário inválido');
+          }
+        }
+      }
     },
     tenant_name: {
       type: DataTypes.STRING,
@@ -80,10 +96,24 @@ module.exports = (sequelize, DataTypes) => {
     tenant_phone: {
       type: DataTypes.STRING,
       allowNull: true,
+      validate: {
+        isValidPhoneFormat(value) {
+          if (value && !isValidBrazilianPhone(value)) {
+            throw new Error('Telefone do inquilino inválido');
+          }
+        }
+      }
     },
     tenant_cpf: {
       type: DataTypes.STRING(11),
       allowNull: true,
+      validate: {
+        isValidCPFFormat(value) {
+          if (value && !isValidCPF(value)) {
+            throw new Error('CPF do inquilino inválido');
+          }
+        }
+      }
     },
     rent_amount: {
       type: DataTypes.DECIMAL(10, 2),
@@ -122,6 +152,165 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: false,
+    },
+    // Novos campos de contrato
+    contract_start_date: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    contract_end_date: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      validate: {
+        isAfterStartDate(value) {
+          if (value && this.contract_start_date && value <= this.contract_start_date) {
+            throw new Error('Data final do contrato deve ser posterior à data inicial');
+          }
+        }
+      }
+    },
+    contract_type: {
+      type: DataTypes.ENUM('residential', 'commercial', 'temporary', 'indefinite'),
+      allowNull: true,
+      defaultValue: 'residential',
+    },
+    deposit_amount: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      validate: {
+        min: 0,
+      }
+    },
+    guarantor_name: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    guarantor_cpf: {
+      type: DataTypes.STRING(11),
+      allowNull: true,
+      validate: {
+        isValidCPFFormat(value) {
+          if (value && !isValidCPF(value)) {
+            throw new Error('CPF do fiador inválido');
+          }
+        }
+      }
+    },
+    guarantor_phone: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      validate: {
+        isValidPhoneFormat(value) {
+          if (value && !isValidBrazilianPhone(value)) {
+            throw new Error('Telefone do fiador inválido');
+          }
+        }
+      }
+    },
+    auto_renewal: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    // Campos de comodidades
+    parking_spots: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 0,
+      validate: {
+        min: 0,
+      }
+    },
+    furnished: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    pet_allowed: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    balcony: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    last_renovation_date: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    // Campos visuais e documentos
+    photos: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      defaultValue: [],
+      validate: {
+        isArray(value) {
+          if (value && !Array.isArray(value)) {
+            throw new Error('Fotos deve ser um array');
+          }
+        }
+      }
+    },
+    virtual_tour_url: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      validate: {
+        isUrl: {
+          msg: 'URL do tour virtual deve ser uma URL válida'
+        }
+      }
+    },
+    description: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    documents: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      defaultValue: [],
+      validate: {
+        isArray(value) {
+          if (value && !Array.isArray(value)) {
+            throw new Error('Documentos deve ser um array');
+          }
+        }
+      }
+    },
+    // Campos de analytics
+    view_count: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+      validate: {
+        min: 0,
+      }
+    },
+    inquiry_count: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+      validate: {
+        min: 0,
+      }
+    },
+    // Campos de auditoria
+    created_by_user_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'users',
+        key: 'id',
+      },
+    },
+    last_updated_by_user_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'users',
+        key: 'id',
+      },
     },
   }, {
     tableName: 'units',
@@ -192,6 +381,17 @@ module.exports = (sequelize, DataTypes) => {
     Unit.hasMany(models.UnitHistory, {
       foreignKey: 'unit_id',
       as: 'history',
+    });
+
+    // Relacionamentos de auditoria
+    Unit.belongsTo(models.User, {
+      foreignKey: 'created_by_user_id',
+      as: 'created_by',
+    });
+
+    Unit.belongsTo(models.User, {
+      foreignKey: 'last_updated_by_user_id',
+      as: 'last_updated_by',
     });
   };
 

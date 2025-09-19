@@ -89,8 +89,9 @@ const createResident = async (req, res) => {
     });
 
     if (existingResident) {
-      return res.status(400).json({ 
-        error: 'Já existe um morador cadastrado com este CPF' 
+      return res.status(400).json({
+        success: false,
+        message: 'Já existe um morador cadastrado com este CPF'
       });
     }
 
@@ -123,18 +124,26 @@ const createResident = async (req, res) => {
       ],
     });
 
-    res.status(201).json(newResident);
+    res.status(201).json({
+      success: true,
+      message: 'Morador adicionado com sucesso',
+      data: newResident
+    });
   } catch (error) {
     console.error('Erro ao criar morador:', error);
-    
+
     if (error.name === 'SequelizeValidationError') {
-      return res.status(400).json({ 
-        error: 'Dados inválidos', 
-        details: error.errors.map(e => e.message) 
+      return res.status(400).json({
+        success: false,
+        message: 'Dados inválidos',
+        details: error.errors.map(e => e.message)
       });
     }
-    
-    res.status(500).json({ error: 'Erro interno do servidor' });
+
+    res.status(500).json({
+      success: false,
+      message: 'Erro interno do servidor'
+    });
   }
 };
 
@@ -242,7 +251,10 @@ const removeResident = async (req, res) => {
       });
 
       await resident.destroy();
-      res.json({ message: 'Morador removido permanentemente' });
+      res.json({
+        success: true,
+        message: 'Morador removido permanentemente'
+      });
     } else {
       await resident.update({
         is_active: false,
@@ -260,11 +272,17 @@ const removeResident = async (req, res) => {
         metadata: { ip: req.ip, user_agent: req.get('User-Agent') },
       });
 
-      res.json({ message: 'Morador marcado como inativo' });
+      res.json({
+        success: true,
+        message: 'Morador marcado como inativo'
+      });
     }
   } catch (error) {
     console.error('Erro ao remover morador:', error);
-    res.status(500).json({ error: 'Erro interno do servidor' });
+    res.status(500).json({
+      success: false,
+      message: 'Erro interno do servidor'
+    });
   }
 };
 

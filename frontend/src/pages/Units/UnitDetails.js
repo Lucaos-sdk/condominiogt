@@ -12,6 +12,7 @@ const UnitDetails = () => {
   const [unit, setUnit] = useState(null);
   const [residents, setResidents] = useState([]);
   const [history, setHistory] = useState([]);
+  const [maintenanceRequests, setMaintenanceRequests] = useState([]);
   const [availableUsers, setAvailableUsers] = useState([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -22,14 +23,14 @@ const UnitDetails = () => {
   const [showAddHistory, setShowAddHistory] = useState(false);
   const [selectedUser, setSelectedUser] = useState('');
   const [residentData, setResidentData] = useState({
-    relationship: 'owner', // owner, tenant, relative, other
+    relationship: 'owner', // owner, tenant, family, dependent, guest
     move_in_date: new Date().toISOString().split('T')[0],
     lease_end_date: '',
     emergency_contact: '',
     notes: ''
   });
   const [historyEntry, setHistoryEntry] = useState({
-    type: 'resident_change', // resident_change, maintenance, status_change, payment, other
+    action_type: 'general_update', // resident_added, resident_removed, resident_updated, status_changed, owner_changed, tenant_changed, fee_changed, general_update
     title: '',
     description: '',
     date: new Date().toISOString().split('T')[0]
@@ -44,13 +45,30 @@ const UnitDetails = () => {
     try {
       // Carregar detalhes da unidade usando endpoint existente
       const unitResponse = await unitAPI.getById(id);
+      console.log('🔍 UnitDetails - Response completa:', unitResponse.data);
       if (unitResponse.data.success) {
-        const unitData = unitResponse.data.data || unitResponse.data.unit;
+        const unitData = unitResponse.data.data?.unit || unitResponse.data.unit;
+        console.log('🔍 UnitDetails - Unit data extraída:', unitData);
+        console.log('🔍 UnitDetails - Floor:', unitData?.floor, 'Bedrooms:', unitData?.bedrooms, 'Bathrooms:', unitData?.bathrooms, 'Parking:', unitData?.parking_spots);
         setUnit(unitData);
-        
-        // Extrair moradores dos relacionamentos existentes
-        const residents = unitData.residents || [];
-        setResidents(residents);
+      }
+
+      // Carregar residentes da unidade usando endpoint específico
+      try {
+        const residentsResponse = await unitAPI.getResidents(id);
+        console.log('🏠 [DEBUG] Residents response:', residentsResponse.data);
+        // O endpoint de residentes retorna diretamente um array
+        if (Array.isArray(residentsResponse.data)) {
+          setResidents(residentsResponse.data);
+        } else if (residentsResponse.data.success) {
+          const residentsData = residentsResponse.data.data || residentsResponse.data;
+          setResidents(residentsData);
+        }
+      } catch (error) {
+        console.log('Aviso: Não foi possível carregar residentes da unidade', error);
+        // Fallback: usar residentes do unitData se disponível
+        const unitData = unitResponse.data.data?.unit || unitResponse.data.unit;
+        setResidents(unitData?.residents || []);
       }
 
       // Carregar usuários disponíveis para adicionar como moradores
@@ -66,8 +84,34 @@ const UnitDetails = () => {
         console.log('Aviso: Não foi possível carregar usuários disponíveis');
       }
 
-      // Definir histórico vazio por enquanto (funcionalidade será implementada)
-      setHistory([]);
+      // Carregar histórico da unidade
+      try {
+        const historyResponse = await unitAPI.getHistory(id);
+        console.log('📋 [DEBUG] History response:', historyResponse.data);
+        if (historyResponse.data) {
+          // O endpoint de histórico retorna {history: [...], pagination: {...}}
+          const historyData = historyResponse.data.history || historyResponse.data.data || [];
+          console.log('📋 [DEBUG] History data:', historyData);
+          setHistory(historyData);
+        }
+      } catch (error) {
+        console.log('Aviso: Não foi possível carregar histórico da unidade');
+        setHistory([]);
+      }
+
+      // Carregar manutenções da unidade
+      try {
+        const maintenanceResponse = await maintenanceAPI.getRequests({ unit_id: id });
+        
+        if (maintenanceResponse.data.success) {
+          // O endpoint retorna {success: true, data: {requests: [...], pagination: {...}}}
+          const maintenanceData = maintenanceResponse.data.data?.requests || maintenanceResponse.data.requests || [];
+          setMaintenanceRequests(maintenanceData);
+        }
+      } catch (error) {
+        console.log('Aviso: Não foi possível carregar manutenções da unidade');
+        setMaintenanceRequests([]);
+      }
 
       setError('');
     } catch (error) {
@@ -83,24 +127,93 @@ const UnitDetails = () => {
     if (!selectedUser) return;
 
     try {
-      // Funcionalidade temporariamente desabilitada
-      setError('Funcionalidade de adicionar morador será implementada em breve');
-      setShowAddResident(false);
-      setTimeout(() => setError(''), 3000);
+      // Encontrar dados do usuário selecionado
+      const selectedUserData = availableUsers.find(u => u.id === parseInt(selectedUser));
+      if (!selectedUserData) {
+        setError('Usuário selecionado não encontrado');
+        return;
+      }
+
+      // Preparar dados do residente
+      const residentPayload = {
+        user_id: selectedUserData.id, // IMPORTANTE: Vincular ao usuário
+        name: selectedUserData.name,
+        cpf: selectedUserData.cpf || String(Math.floor(Math.random() * 99999999999)).padStart(11, '0'), // CPF único se não informado
+        email: selectedUserData.email || '',
+        phone: selectedUserData.phone ? selectedUserData.phone.replace(/\D/g, '') : '', // Remover formatação do telefone
+        relationship: residentData.relationship,
+        // Remover birth_date se for null para evitar erro de validação
+        is_main_resident: residentData.relationship === 'owner',
+        move_in_date: residentData.move_in_date,
+        notes: residentData.notes
+      };
+
+      console.log('🔍 Enviando dados do residente:', residentPayload);
+      const response = await unitAPI.addResident(id, residentPayload);
+      
+      if (response.data.success || response.data.id) {
+        setSuccess('Morador adicionado com sucesso!');
+        setShowAddResident(false);
+
+        // Limpar formulário
+        setSelectedUser('');
+        setResidentData({
+          relationship: 'owner',
+          move_in_date: new Date().toISOString().split('T')[0],
+          lease_end_date: '',
+          emergency_contact: '',
+          notes: ''
+        });
+
+        // Recarregar apenas os residentes
+        try {
+          const residentsResponse = await unitAPI.getResidents(id);
+          console.log('🏠 [DEBUG] Residents reloaded:', residentsResponse.data);
+          if (Array.isArray(residentsResponse.data)) {
+            setResidents(residentsResponse.data);
+          }
+        } catch (error) {
+          console.log('Erro ao recarregar residentes:', error);
+          // Fallback: recarregar tudo
+          await loadUnitDetails();
+        }
+
+        setTimeout(() => setSuccess(''), 3000);
+      }
     } catch (error) {
+      console.error('Erro ao adicionar morador:', error);
       setError(error.response?.data?.message || 'Erro ao adicionar morador');
       setTimeout(() => setError(''), 3000);
     }
   };
 
-  const handleRemoveResident = async (userId) => {
+  const handleRemoveResident = async (residentId) => {
     if (!window.confirm('Tem certeza que deseja remover este morador?')) return;
 
     try {
-      // Funcionalidade temporariamente desabilitada
-      setError('Funcionalidade de remover morador será implementada em breve');
-      setTimeout(() => setError(''), 3000);
+      const response = await unitAPI.removeResident(residentId);
+      console.log('🗑️ [DEBUG] Remove resident response:', response.data);
+
+      if (response.data.success || response.status === 200) {
+        setSuccess('Morador removido com sucesso!');
+
+        // Recarregar apenas os residentes
+        try {
+          const residentsResponse = await unitAPI.getResidents(id);
+          console.log('🏠 [DEBUG] Residents reloaded after removal:', residentsResponse.data);
+          if (Array.isArray(residentsResponse.data)) {
+            setResidents(residentsResponse.data);
+          }
+        } catch (error) {
+          console.log('Erro ao recarregar residentes:', error);
+          // Fallback: recarregar tudo
+          await loadUnitDetails();
+        }
+
+        setTimeout(() => setSuccess(''), 3000);
+      }
     } catch (error) {
+      console.error('Erro ao remover morador:', error);
       setError(error.response?.data?.message || 'Erro ao remover morador');
       setTimeout(() => setError(''), 3000);
     }
@@ -110,11 +223,36 @@ const UnitDetails = () => {
     e.preventDefault();
     
     try {
-      // Funcionalidade temporariamente desabilitada
-      setError('Funcionalidade de histórico será implementada em breve');
-      setShowAddHistory(false);
-      setTimeout(() => setError(''), 3000);
+      // Preparar dados no formato correto para o backend
+      const historyData = {
+        action_type: historyEntry.action_type,
+        description: historyEntry.description,
+        old_values: null,
+        new_values: null,
+        metadata: { manual_entry: true }
+      };
+
+      const response = await unitAPI.addHistoryEntry(id, historyData);
+      
+      if (response.data.success !== false) { // Backend não retorna success:true para este endpoint
+        setSuccess('Entrada de histórico adicionada com sucesso!');
+        setShowAddHistory(false);
+        
+        // Limpar formulário
+        setHistoryEntry({
+          action_type: 'general_update',
+          title: '',
+          description: '',
+          date: new Date().toISOString().split('T')[0]
+        });
+        
+        // Recarregar dados
+        await loadUnitDetails();
+        
+        setTimeout(() => setSuccess(''), 3000);
+      }
     } catch (error) {
+      console.error('Erro ao adicionar entrada de histórico:', error);
       setError(error.response?.data?.message || 'Erro ao adicionar entrada de histórico');
       setTimeout(() => setError(''), 3000);
     }
@@ -155,8 +293,9 @@ const UnitDetails = () => {
     const labels = {
       owner: 'Proprietário',
       tenant: 'Inquilino',
-      relative: 'Familiar',
-      other: 'Outro'
+      family: 'Familiar',
+      dependent: 'Dependente',
+      guest: 'Convidado'
     };
     return labels[relationship] || relationship;
   };
@@ -248,11 +387,10 @@ const UnitDetails = () => {
                 ✏️ Editar
               </button>
               <button
-                onClick={() => setError('Funcionalidade será implementada em breve')}
-                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-500 bg-gray-100 cursor-not-allowed"
-                disabled
+                onClick={() => setShowAddResident(true)}
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
               >
-                👥 Adicionar Morador (Em Breve)
+                👥 Adicionar Morador
               </button>
             </div>
           )}
@@ -308,6 +446,10 @@ const UnitDetails = () => {
                     <p className="text-lg font-semibold">{unit.number}</p>
                   </div>
                   <div>
+                    <label className="block text-sm font-medium text-gray-500">Bloco</label>
+                    <p className="text-lg">{unit.block || 'N/A'}</p>
+                  </div>
+                  <div>
                     <label className="block text-sm font-medium text-gray-500">Tipo</label>
                     <p className="text-lg">{getTypeLabel(unit.type)}</p>
                   </div>
@@ -319,7 +461,7 @@ const UnitDetails = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Andar</label>
-                    <p className="text-lg">{unit.floor || 'N/A'}</p>
+                    <p className="text-lg">{unit.floor !== null && unit.floor !== undefined ? unit.floor : 'N/A'}</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Área</label>
@@ -327,15 +469,27 @@ const UnitDetails = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Quartos</label>
-                    <p className="text-lg">{unit.bedrooms || 'N/A'}</p>
+                    <p className="text-lg">{unit.bedrooms !== null && unit.bedrooms !== undefined ? unit.bedrooms : 'N/A'}</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Banheiros</label>
-                    <p className="text-lg">{unit.bathrooms || 'N/A'}</p>
+                    <p className="text-lg">{unit.bathrooms !== null && unit.bathrooms !== undefined ? unit.bathrooms : 'N/A'}</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Vagas</label>
-                    <p className="text-lg">{unit.parking_spots || 'N/A'}</p>
+                    <p className="text-lg">{unit.parking_spots !== null && unit.parking_spots !== undefined ? unit.parking_spots : 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500">Mobiliado</label>
+                    <p className="text-lg">{unit.furnished ? '✅ Sim' : '❌ Não'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500">Pets Permitidos</label>
+                    <p className="text-lg">{unit.pet_allowed ? '✅ Sim' : '❌ Não'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500">Varanda</label>
+                    <p className="text-lg">{unit.balcony ? '✅ Sim' : '❌ Não'}</p>
                   </div>
                 </div>
                 
@@ -346,6 +500,80 @@ const UnitDetails = () => {
                   </div>
                 )}
               </div>
+
+              {/* Informações Financeiras e de Contrato */}
+              {(unit.rent_amount || unit.condominium_fee || unit.contract_start_date || unit.owner_name || unit.tenant_name) && (
+                <div className="bg-white rounded-lg shadow p-6 mt-6">
+                  <h2 className="text-lg font-medium text-gray-900 mb-4">Informações Financeiras e Contrato</h2>
+                  <div className="grid grid-cols-2 gap-4">
+                    {unit.condominium_fee && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-500">Taxa Condominial</label>
+                        <p className="text-lg font-semibold text-green-600">R$ {parseFloat(unit.condominium_fee).toFixed(2)}</p>
+                      </div>
+                    )}
+                    {unit.rent_amount && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-500">Valor do Aluguel</label>
+                        <p className="text-lg font-semibold text-blue-600">R$ {parseFloat(unit.rent_amount).toFixed(2)}</p>
+                      </div>
+                    )}
+                    {unit.deposit_amount && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-500">Depósito</label>
+                        <p className="text-lg">R$ {parseFloat(unit.deposit_amount).toFixed(2)}</p>
+                      </div>
+                    )}
+                    {unit.contract_type && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-500">Tipo de Contrato</label>
+                        <p className="text-lg">{unit.contract_type}</p>
+                      </div>
+                    )}
+                    {unit.contract_start_date && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-500">Início do Contrato</label>
+                        <p className="text-lg">{new Date(unit.contract_start_date).toLocaleDateString('pt-BR')}</p>
+                      </div>
+                    )}
+                    {unit.contract_end_date && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-500">Fim do Contrato</label>
+                        <p className="text-lg">{new Date(unit.contract_end_date).toLocaleDateString('pt-BR')}</p>
+                      </div>
+                    )}
+                    {unit.owner_name && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-500">Proprietário</label>
+                        <p className="text-lg">{unit.owner_name}</p>
+                        {unit.owner_email && <p className="text-sm text-gray-600">{unit.owner_email}</p>}
+                        {unit.owner_phone && <p className="text-sm text-gray-600">{unit.owner_phone}</p>}
+                      </div>
+                    )}
+                    {unit.tenant_name && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-500">Inquilino</label>
+                        <p className="text-lg">{unit.tenant_name}</p>
+                        {unit.tenant_email && <p className="text-sm text-gray-600">{unit.tenant_email}</p>}
+                        {unit.tenant_phone && <p className="text-sm text-gray-600">{unit.tenant_phone}</p>}
+                      </div>
+                    )}
+                    {unit.guarantor_name && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-500">Fiador</label>
+                        <p className="text-lg">{unit.guarantor_name}</p>
+                        {unit.guarantor_phone && <p className="text-sm text-gray-600">{unit.guarantor_phone}</p>}
+                      </div>
+                    )}
+                    {unit.last_renovation_date && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-500">Última Renovação</label>
+                        <p className="text-lg">{new Date(unit.last_renovation_date).toLocaleDateString('pt-BR')}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Estatísticas */}
@@ -443,7 +671,7 @@ const UnitDetails = () => {
                     {canManageUnit() && (
                       <div className="flex space-x-2">
                         <button
-                          onClick={() => handleRemoveResident(resident.user_id)}
+                          onClick={() => handleRemoveResident(resident.id)}
                           className="text-red-600 hover:text-red-900 text-sm"
                         >
                           Remover
@@ -486,17 +714,20 @@ const UnitDetails = () => {
               {history.length > 0 ? history.map((entry) => (
                 <div key={entry.id} className="px-6 py-4">
                   <div className="flex items-start">
-                    <span className="text-2xl mr-3">{getHistoryIcon(entry.type)}</span>
+                    <span className="text-2xl mr-3">{getHistoryIcon(entry.action_type || entry.type)}</span>
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-medium text-gray-900">{entry.title}</h3>
+                        <h3 className="text-sm font-medium text-gray-900">{entry.title || entry.description || 'Ação de histórico'}</h3>
                         <span className="text-xs text-gray-500">
-                          {new Date(entry.date).toLocaleDateString('pt-BR')}
+                          {entry.date ? new Date(entry.date).toLocaleDateString('pt-BR') :
+                           entry.createdAt ? new Date(entry.createdAt).toLocaleDateString('pt-BR') :
+                           entry.created_at ? new Date(entry.created_at).toLocaleDateString('pt-BR') :
+                           'Data não disponível'}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-600 mt-1">{entry.description}</p>
+                      <p className="text-sm text-gray-600 mt-1">{entry.notes || entry.description || 'Sem detalhes adicionais'}</p>
                       <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800 mt-2">
-                        {getHistoryTypeLabel(entry.type)}
+                        {getHistoryTypeLabel(entry.action_type || entry.type)}
                       </span>
                     </div>
                   </div>
@@ -513,21 +744,75 @@ const UnitDetails = () => {
 
         {activeTab === 'maintenance' && (
           <div className="bg-white rounded-lg shadow">
-            <div className="px-6 py-4 border-b border-gray-200">
+            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
               <h2 className="text-lg font-medium text-gray-900">Manutenções da Unidade</h2>
+              {canManageUnit() && (
+                <button
+                  onClick={() => navigate(`/manutencao/solicitacoes/nova?unit=${id}`)}
+                  className="px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-orange-600 hover:bg-orange-700"
+                >
+                  Nova Solicitação
+                </button>
+              )}
             </div>
             
-            <div className="p-6 text-center">
-              <span className="text-4xl mb-4 block">🔧</span>
-              <p className="text-gray-500 mb-4">
-                Histórico de manutenções será integrado em breve
-              </p>
-              <button
-                onClick={() => navigate(`/manutencao/solicitacoes?unit=${id}`)}
-                className="px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-orange-600 hover:bg-orange-700"
-              >
-                Ver Manutenções da Unidade
-              </button>
+            <div className="divide-y divide-gray-200">
+              {maintenanceRequests.length > 0 ? maintenanceRequests.map((request) => (
+                <div key={request.id} className="px-6 py-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-medium text-gray-900">{request.title}</h3>
+                        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                          request.status === 'open' ? 'bg-red-100 text-red-800' :
+                          request.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
+                          request.status === 'completed' ? 'bg-green-100 text-green-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {request.status === 'open' ? 'Aberta' :
+                           request.status === 'in_progress' ? 'Em Andamento' :
+                           request.status === 'completed' ? 'Concluída' :
+                           request.status}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600 mt-1">{request.description}</p>
+                      <div className="flex items-center mt-2 text-xs text-gray-500">
+                        <span>Prioridade: {request.priority === 'low' ? 'Baixa' : request.priority === 'medium' ? 'Média' : 'Alta'}</span>
+                        <span className="mx-2">•</span>
+                        <span>Criada em {new Date(request.createdAt).toLocaleDateString('pt-BR')}</span>
+                        {request.estimated_cost && (
+                          <>
+                            <span className="mx-2">•</span>
+                            <span>Custo estimado: R$ {parseFloat(request.estimated_cost).toFixed(2)}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center space-x-2 ml-4">
+                      <button
+                        onClick={() => navigate(`/manutencao/solicitacoes/${request.id}`)}
+                        className="text-blue-600 hover:text-blue-900 text-sm"
+                      >
+                        Ver Detalhes
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )) : (
+                <div className="px-6 py-12 text-center">
+                  <span className="text-4xl mb-4 block">🔧</span>
+                  <p className="text-gray-500 mb-4">Nenhuma solicitação de manutenção</p>
+                  {canManageUnit() && (
+                    <button
+                      onClick={() => navigate(`/manutencao/solicitacoes/nova?unit=${id}`)}
+                      className="px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-orange-600 hover:bg-orange-700"
+                    >
+                      Criar Primeira Solicitação
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -572,8 +857,9 @@ const UnitDetails = () => {
                   >
                     <option value="owner">Proprietário</option>
                     <option value="tenant">Inquilino</option>
-                    <option value="relative">Familiar</option>
-                    <option value="other">Outro</option>
+                    <option value="family">Familiar</option>
+                    <option value="dependent">Dependente</option>
+                    <option value="guest">Convidado</option>
                   </select>
                 </div>
 
@@ -636,16 +922,16 @@ const UnitDetails = () => {
                     Tipo *
                   </label>
                   <select
-                    value={historyEntry.type}
-                    onChange={(e) => setHistoryEntry({...historyEntry, type: e.target.value})}
+                    value={historyEntry.action_type}
+                    onChange={(e) => setHistoryEntry({...historyEntry, action_type: e.target.value})}
                     required
                     className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   >
-                    <option value="resident_change">Mudança de Morador</option>
-                    <option value="maintenance">Manutenção</option>
-                    <option value="status_change">Mudança de Status</option>
-                    <option value="payment">Pagamento</option>
-                    <option value="other">Outros</option>
+                    <option value="general_update">Atualização Geral</option>
+                    <option value="status_changed">Mudança de Status</option>
+                    <option value="owner_changed">Mudança de Proprietário</option>
+                    <option value="tenant_changed">Mudança de Inquilino</option>
+                    <option value="fee_changed">Mudança de Taxa</option>
                   </select>
                 </div>
 

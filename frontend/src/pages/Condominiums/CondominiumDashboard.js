@@ -21,21 +21,52 @@ const CondominiumDashboard = () => {
         const data = response.data.data || response.data;
         const condominiums = data.condominiums || [];
         
-        // Calcular estatísticas
+        // Calcular estatísticas básicas de condomínios
         const totalCondominiums = condominiums.length;
         const activeCondominiums = condominiums.filter(c => c.status === 'active').length;
         const inactiveCondominiums = condominiums.filter(c => c.status === 'inactive').length;
         const maintenanceCondominiums = condominiums.filter(c => c.status === 'maintenance').length;
         
-        // Estatísticas básicas (unidades serão calculadas pelo módulo de unidades)
-        const occupancyRate = 0; // Será calculado pelo módulo de unidades
+        // Calcular estatísticas agregadas de unidades de todos os condomínios
+        let totalUnits = 0;
+        let totalOccupiedUnits = 0;
+        let totalAvailableUnits = 0;
+        let totalOccupancyRate = 0;
+        let condominiumsWithStats = 0;
+        
+        // Buscar estatísticas de cada condomínio ativo
+        for (const condominium of condominiums.filter(c => c.status === 'active')) {
+          try {
+            const statsResponse = await condominiumAPI.getStats(condominium.id);
+            if (statsResponse.data.success) {
+              const condStats = statsResponse.data.data.stats;
+              totalUnits += condStats.total_units || 0;
+              totalOccupiedUnits += condStats.occupied_units || 0;
+              totalAvailableUnits += condStats.available_units || 0;
+              if (condStats.occupancy_rate) {
+                totalOccupancyRate += parseFloat(condStats.occupancy_rate);
+                condominiumsWithStats++;
+              }
+            }
+          } catch (error) {
+            console.warn(`Erro ao carregar stats do condomínio ${condominium.id}:`, error);
+          }
+        }
+        
+        // Calcular taxa de ocupação média
+        const averageOccupancyRate = condominiumsWithStats > 0 
+          ? (totalOccupancyRate / condominiumsWithStats).toFixed(2)
+          : 0;
         
         setStats({
           totalCondominiums,
           activeCondominiums,
           inactiveCondominiums,
           maintenanceCondominiums,
-          occupancyRate
+          totalUnits,
+          occupiedUnits: totalOccupiedUnits,
+          availableUnits: totalAvailableUnits,
+          occupancyRate: averageOccupancyRate
         });
         
         // Pegar os condomínios mais recentes
@@ -299,7 +330,7 @@ const CondominiumDashboard = () => {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-600">Disponíveis</span>
-              <span className="text-sm font-medium text-gray-600">{(stats?.totalUnits || 0) - (stats?.occupiedUnits || 0)}</span>
+              <span className="text-sm font-medium text-gray-600">{stats?.availableUnits || 0}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-600">Taxa de Ocupação</span>

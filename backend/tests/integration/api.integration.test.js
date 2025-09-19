@@ -28,6 +28,7 @@ describe('API Integration Tests', () => {
       city: 'Integration City',
       state: 'IC',
       zip_code: '12345678',
+      total_units: 25,
       status: 'active'
     });
 

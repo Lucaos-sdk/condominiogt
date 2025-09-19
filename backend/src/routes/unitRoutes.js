@@ -59,7 +59,7 @@ const unitValidation = [
     .isInt({ min: 0 })
     .withMessage('Banheiros deve ser maior ou igual a 0'),
   body('area')
-    .optional()
+    .optional({ nullable: true })
     .isDecimal({ decimal_digits: '0,2' })
     .withMessage('Área deve ser um número decimal válido'),
   body('status')
@@ -93,13 +93,62 @@ const unitValidation = [
     .isLength({ min: 11, max: 11 })
     .withMessage('CPF do inquilino deve ter 11 caracteres'),
   body('rent_amount')
-    .optional()
+    .optional({ nullable: true })
     .isDecimal({ decimal_digits: '0,2' })
     .withMessage('Valor do aluguel deve ser um número decimal válido'),
   body('condominium_fee')
-    .optional()
+    .optional({ nullable: true })
     .isDecimal({ decimal_digits: '0,2' })
-    .withMessage('Taxa condominial deve ser um número decimal válido')
+    .withMessage('Taxa condominial deve ser um número decimal válido'),
+  // Validações dos novos campos
+  body('contract_start_date')
+    .optional()
+    .isISO8601()
+    .withMessage('Data de início do contrato deve ser uma data válida'),
+  body('contract_end_date')
+    .optional()
+    .isISO8601()
+    .withMessage('Data de fim do contrato deve ser uma data válida'),
+  body('contract_type')
+    .optional()
+    .isIn(['residential', 'commercial', 'temporary', 'indefinite'])
+    .withMessage('Tipo de contrato deve ser: residential, commercial, temporary ou indefinite'),
+  body('deposit_amount')
+    .optional({ nullable: true })
+    .isDecimal({ decimal_digits: '0,2' })
+    .withMessage('Valor do depósito deve ser um número decimal válido'),
+  body('guarantor_cpf')
+    .optional()
+    .isLength({ min: 11, max: 11 })
+    .withMessage('CPF do fiador deve ter 11 caracteres'),
+  body('guarantor_phone')
+    .optional()
+    .isMobilePhone('pt-BR')
+    .withMessage('Telefone do fiador inválido'),
+  body('parking_spots')
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage('Número de vagas deve ser maior ou igual a 0'),
+  body('furnished')
+    .optional()
+    .isBoolean()
+    .withMessage('Campo mobiliado deve ser verdadeiro ou falso'),
+  body('pet_allowed')
+    .optional()
+    .isBoolean()
+    .withMessage('Campo pets permitidos deve ser verdadeiro ou falso'),
+  body('balcony')
+    .optional()
+    .isBoolean()
+    .withMessage('Campo varanda deve ser verdadeiro ou falso'),
+  body('auto_renewal')
+    .optional()
+    .isBoolean()
+    .withMessage('Campo renovação automática deve ser verdadeiro ou falso'),
+  body('last_renovation_date')
+    .optional()
+    .isISO8601()
+    .withMessage('Data da última renovação deve ser uma data válida')
 ];
 
 const updateUnitValidation = [
@@ -128,7 +177,7 @@ const updateUnitValidation = [
     .isInt({ min: 0 })
     .withMessage('Banheiros deve ser maior ou igual a 0'),
   body('area')
-    .optional()
+    .optional({ nullable: true })
     .isDecimal({ decimal_digits: '0,2' })
     .withMessage('Área deve ser um número decimal válido'),
   body('status')
@@ -162,13 +211,62 @@ const updateUnitValidation = [
     .isLength({ min: 11, max: 11 })
     .withMessage('CPF do inquilino deve ter 11 caracteres'),
   body('rent_amount')
-    .optional()
+    .optional({ nullable: true })
     .isDecimal({ decimal_digits: '0,2' })
     .withMessage('Valor do aluguel deve ser um número decimal válido'),
   body('condominium_fee')
-    .optional()
+    .optional({ nullable: true })
     .isDecimal({ decimal_digits: '0,2' })
-    .withMessage('Taxa condominial deve ser um número decimal válido')
+    .withMessage('Taxa condominial deve ser um número decimal válido'),
+  // Validações dos novos campos para update
+  body('contract_start_date')
+    .optional()
+    .isISO8601()
+    .withMessage('Data de início do contrato deve ser uma data válida'),
+  body('contract_end_date')
+    .optional()
+    .isISO8601()
+    .withMessage('Data de fim do contrato deve ser uma data válida'),
+  body('contract_type')
+    .optional()
+    .isIn(['residential', 'commercial', 'temporary', 'indefinite'])
+    .withMessage('Tipo de contrato deve ser: residential, commercial, temporary ou indefinite'),
+  body('deposit_amount')
+    .optional({ nullable: true })
+    .isDecimal({ decimal_digits: '0,2' })
+    .withMessage('Valor do depósito deve ser um número decimal válido'),
+  body('guarantor_cpf')
+    .optional()
+    .isLength({ min: 11, max: 11 })
+    .withMessage('CPF do fiador deve ter 11 caracteres'),
+  body('guarantor_phone')
+    .optional()
+    .isMobilePhone('pt-BR')
+    .withMessage('Telefone do fiador inválido'),
+  body('parking_spots')
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage('Número de vagas deve ser maior ou igual a 0'),
+  body('furnished')
+    .optional()
+    .isBoolean()
+    .withMessage('Campo mobiliado deve ser verdadeiro ou falso'),
+  body('pet_allowed')
+    .optional()
+    .isBoolean()
+    .withMessage('Campo pets permitidos deve ser verdadeiro ou falso'),
+  body('balcony')
+    .optional()
+    .isBoolean()
+    .withMessage('Campo varanda deve ser verdadeiro ou falso'),
+  body('auto_renewal')
+    .optional()
+    .isBoolean()
+    .withMessage('Campo renovação automática deve ser verdadeiro ou falso'),
+  body('last_renovation_date')
+    .optional()
+    .isISO8601()
+    .withMessage('Data da última renovação deve ser uma data válida')
 ];
 
 // @route   GET /api/units

@@ -85,9 +85,9 @@ export const unitAPI = {
   
   // Gestão de moradores
   getResidents: (unitId) => api.get(`/units/${unitId}/residents`),
-  addResident: (unitId, userId, data) => api.post(`/units/${unitId}/residents/${userId}`, data),
-  updateResident: (unitId, userId, data) => api.put(`/units/${unitId}/residents/${userId}`, data),
-  removeResident: (unitId, userId) => api.delete(`/units/${unitId}/residents/${userId}`),
+  addResident: (unitId, data) => api.post(`/units/${unitId}/residents`, data),
+  updateResident: (residentId, data) => api.put(`/units/residents/${residentId}`, data),
+  removeResident: (residentId) => api.delete(`/units/residents/${residentId}`),
   
   // Histórico da unidade
   getHistory: (unitId, params) => api.get(`/units/${unitId}/history`, { params }),

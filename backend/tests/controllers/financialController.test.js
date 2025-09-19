@@ -23,6 +23,7 @@ describe('Financial Controller Tests', () => {
       city: 'Financial City',
       state: 'FC',
       zip_code: '87654321',
+      total_units: 30,
       status: 'active'
     });
 

@@ -51,7 +51,23 @@
       "Bash(PORT=3002 npm run dev)",
       "Bash(npm run migrate:*)",
       "Bash(true)",
-      "Bash(npx sequelize-cli:*)"
+      "Bash(npx sequelize-cli:*)",
+      "Bash(git remote add:*)",
+      "Bash(git push:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(git branch:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(timeout 30 docker logs condominiogt-backend-dev -f)",
+      "Bash(npm run migration:generate:*)",
+      "Bash(netstat:*)",
+      "Bash(npm run test:*)",
+      "Bash(npm run lint:*)",
+      "Bash(NODE_ENV=test npm test -- tests/controllers/authController.test.js --testTimeout=10000)",
+      "Bash(NODE_ENV=test npx sequelize-cli db:migrate)",
+      "Read(//home/ti-semdes/Documentos/**)",
+      "Bash(NODE_ENV=test npm test -- tests/controllers/authController.test.js --testTimeout=15000)",
+      "Bash(NODE_ENV=test npm test -- tests/controllers/authController.test.js --testTimeout=20000)"
     ],
     "deny": []
   }

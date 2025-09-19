@@ -65,7 +65,78 @@ const condominiumValidation = [
   body('status')
     .optional()
     .isIn(['active', 'inactive', 'construction'])
-    .withMessage('Status deve ser: active, inactive ou construction')
+    .withMessage('Status deve ser: active, inactive ou construction'),
+  // Validações dos novos campos
+  body('administrator_cnpj')
+    .optional()
+    .isLength({ min: 14, max: 14 })
+    .withMessage('CNPJ da administradora deve ter 14 caracteres'),
+  body('administrator_contact')
+    .optional()
+    .isMobilePhone('pt-BR')
+    .withMessage('Telefone da administradora inválido'),
+  body('administrator_email')
+    .optional()
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Email da administradora inválido'),
+  body('syndic_user_id')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('ID do síndico deve ser um número inteiro positivo'),
+  body('reserve_fund')
+    .optional({ nullable: true })
+    .isDecimal({ decimal_digits: '0,2' })
+    .withMessage('Fundo de reserva deve ser um número decimal válido'),
+  body('monthly_admin_fee')
+    .optional({ nullable: true })
+    .isDecimal({ decimal_digits: '0,2' })
+    .withMessage('Taxa administrativa mensal deve ser um número decimal válido'),
+  body('insurance_expiry')
+    .optional()
+    .isISO8601()
+    .withMessage('Data de vencimento do seguro deve ser uma data válida'),
+  body('fire_certificate_expiry')
+    .optional()
+    .isISO8601()
+    .withMessage('Data de vencimento do certificado de bombeiros deve ser uma data válida'),
+  body('environmental_license_expiry')
+    .optional()
+    .isISO8601()
+    .withMessage('Data de vencimento da licença ambiental deve ser uma data válida'),
+  // Validações das comodidades (booleanos)
+  body('security_24h')
+    .optional()
+    .isBoolean()
+    .withMessage('Campo segurança 24h deve ser verdadeiro ou falso'),
+  body('security_cameras')
+    .optional()
+    .isBoolean()
+    .withMessage('Campo câmeras de segurança deve ser verdadeiro ou falso'),
+  body('gym')
+    .optional()
+    .isBoolean()
+    .withMessage('Campo academia deve ser verdadeiro ou falso'),
+  body('pool')
+    .optional()
+    .isBoolean()
+    .withMessage('Campo piscina deve ser verdadeiro ou falso'),
+  body('party_hall')
+    .optional()
+    .isBoolean()
+    .withMessage('Campo salão de festas deve ser verdadeiro ou falso'),
+  body('playground')
+    .optional()
+    .isBoolean()
+    .withMessage('Campo playground deve ser verdadeiro ou falso'),
+  body('barbecue_area')
+    .optional()
+    .isBoolean()
+    .withMessage('Campo área de churrasco deve ser verdadeiro ou falso'),
+  body('garden')
+    .optional()
+    .isBoolean()
+    .withMessage('Campo jardim deve ser verdadeiro ou falso')
 ];
 
 // @route   GET /api/condominiums

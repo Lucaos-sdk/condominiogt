@@ -27,9 +27,9 @@ module.exports = {
     logging: process.env.NODE_ENV === 'development' ? console.log : false,
   },
   test: {
-    username: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || 'condominiogt123',
-    database: process.env.DB_NAME + '_test' || 'condominiogt_test',
+    username: process.env.DB_USER || 'condominiogt_user',
+    password: process.env.DB_PASS || 'condominiogt123',
+    database: process.env.DB_NAME || 'condominiogt_test',
     host: process.env.DB_HOST || 'localhost',
     port: process.env.DB_PORT || 3306,
     dialect: 'mysql',

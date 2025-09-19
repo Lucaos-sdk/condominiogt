@@ -1,4 +1,4 @@
-const { Condominium, Unit, User, UserCondominium } = require('../models');
+const { Condominium, Unit, User, UserCondominium, sequelize } = require('../models');
 const { asyncHandler, logger } = require('../middleware/errorHandler');
 const { Op } = require('sequelize');
 const cacheService = require('../services/cacheService');
@@ -414,21 +414,23 @@ const getCondominiumStats = asyncHandler(async (req, res) => {
   const occupiedUnits = await Unit.count({
     where: { 
       condominium_id: id,
-      status: 'occupied'
+      status: ['occupied', 'rented']
     }
   });
 
   const availableUnits = await Unit.count({
     where: { 
       condominium_id: id,
-      status: 'available'
+      status: 'vacant'
     }
   });
 
+  // Contar residentes ativos do condomínio
   const totalResidents = await UserCondominium.count({
     where: { 
       condominium_id: id,
-      role: 'resident'
+      status: 'active',
+      role: ['owner', 'tenant', 'syndic', 'resident']
     }
   });
 
