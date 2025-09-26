@@ -420,9 +420,13 @@ const getCondominiumStats = asyncHandler(async (req, res) => {
   }
 
   // Buscar estatísticas
-  const totalUnits = await Unit.count({
+  const persistedUnitCount = await Unit.count({
     where: { condominium_id: id }
   });
+
+  const totalUnits = persistedUnitCount > 0
+    ? persistedUnitCount
+    : parseInt(condominium.total_units || 0, 10);
 
   const occupiedUnits = await Unit.count({
     where: {

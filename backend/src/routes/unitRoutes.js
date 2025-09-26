@@ -4,6 +4,7 @@ const { body } = require('express-validator');
 const { validateRequest } = require('../middleware/validation');
 const { protect } = require('../middleware/auth');
 const { requireRole } = require('../middleware/authorization');
+const { normalizePhone } = require('../utils/validators');
 const {
   getUnits,
   getUnitsByCondominium,
@@ -350,9 +351,17 @@ const residentValidation = [
     .normalizeEmail()
     .withMessage('Email inválido'),
   body('phone')
-    .optional()
-    .isMobilePhone('pt-BR')
-    .withMessage('Telefone inválido'),
+    .optional({ checkFalsy: true })
+    .customSanitizer(value => normalizePhone(value))
+    .custom((value) => {
+      if (!value) {
+        return true;
+      }
+      if (value.length < 10 || value.length > 11) {
+        throw new Error('Telefone inválido');
+      }
+      return true;
+    }),
   body('relationship')
     .optional()
     .isIn(['owner', 'tenant', 'family', 'dependent', 'guest'])
@@ -384,9 +393,17 @@ const updateResidentValidation = [
     .normalizeEmail()
     .withMessage('Email inválido'),
   body('phone')
-    .optional()
-    .isMobilePhone('pt-BR')
-    .withMessage('Telefone inválido'),
+    .optional({ checkFalsy: true })
+    .customSanitizer(value => normalizePhone(value))
+    .custom((value) => {
+      if (!value) {
+        return true;
+      }
+      if (value.length < 10 || value.length > 11) {
+        throw new Error('Telefone inválido');
+      }
+      return true;
+    }),
   body('relationship')
     .optional()
     .isIn(['owner', 'tenant', 'family', 'dependent', 'guest'])
