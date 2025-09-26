@@ -3,6 +3,8 @@ require('dotenv').config({ path: '.env.test' });
 
 // Set NODE_ENV to test before importing models
 process.env.NODE_ENV = 'test';
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
+process.env.JWT_EXPIRE = process.env.JWT_EXPIRE || '1h';
 
 const { sequelize } = require('../src/models');
 
@@ -10,6 +12,7 @@ const { sequelize } = require('../src/models');
 beforeAll(async () => {
   try {
     await sequelize.authenticate();
+    await sequelize.sync({ force: true });
     console.log('✅ Test database connection established');
   } catch (error) {
     console.error('❌ Unable to connect to test database:', error);

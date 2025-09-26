@@ -29,7 +29,7 @@ router.post('/refresh', authAuditMiddleware('REFRESH_TOKEN'), authController.ref
 // Rotas protegidas
 router.get('/profile', protect, authController.getProfile);
 router.put('/profile', protect, authAuditMiddleware('UPDATE_PROFILE'), authController.updateProfile);
-router.put('/password', protect, authAuditMiddleware('CHANGE_PASSWORD'), authController.changePassword);
+router.put('/change-password', protect, authAuditMiddleware('CHANGE_PASSWORD'), authController.changePassword);
 router.post('/logout', protect, authAuditMiddleware('LOGOUT'), authController.logout);
 
 module.exports = router;
