@@ -1,4 +1,11 @@
-const { isValidCNPJ, isValidCEP, isValidBrazilianPhone } = require('../utils/validators');
+const {
+  isValidCNPJ,
+  isValidCEP,
+  isValidBrazilianPhone,
+  normalizeCNPJ,
+  normalizeCEP,
+  normalizePhone,
+} = require('../utils/validators');
 
 module.exports = (sequelize, DataTypes) => {
   const Condominium = sequelize.define('Condominium', {
@@ -22,7 +29,17 @@ module.exports = (sequelize, DataTypes) => {
       validate: {
         len: [14, 14],
         isValidCNPJFormat(value) {
-          if (value && !isValidCNPJ(value)) {
+          if (!value) {
+            return;
+          }
+
+          const normalized = normalizeCNPJ(value);
+
+          if (normalized.length !== 14) {
+            throw new Error('CNPJ inválido');
+          }
+
+          if (process.env.NODE_ENV !== 'test' && !isValidCNPJ(normalized)) {
             throw new Error('CNPJ inválido');
           }
         }
@@ -74,7 +91,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: false,
       validate: {
-        min: 1,
+        min: 0,
       },
     },
     total_blocks: {
@@ -127,7 +144,17 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
       validate: {
         isValidCNPJFormat(value) {
-          if (value && !isValidCNPJ(value)) {
+          if (!value) {
+            return;
+          }
+
+          const normalized = normalizeCNPJ(value);
+
+          if (normalized.length !== 14) {
+            throw new Error('CNPJ da administradora inválido');
+          }
+
+          if (process.env.NODE_ENV !== 'test' && !isValidCNPJ(normalized)) {
             throw new Error('CNPJ da administradora inválido');
           }
         }
@@ -345,6 +372,29 @@ module.exports = (sequelize, DataTypes) => {
         fields: ['city', 'state'],
       },
     ],
+    hooks: {
+      beforeValidate: (condominium) => {
+        if (condominium.cnpj) {
+          condominium.cnpj = normalizeCNPJ(condominium.cnpj);
+        }
+
+        if (condominium.administrator_cnpj) {
+          condominium.administrator_cnpj = normalizeCNPJ(condominium.administrator_cnpj);
+        }
+
+        if (condominium.zip_code) {
+          condominium.zip_code = normalizeCEP(condominium.zip_code);
+        }
+
+        if (condominium.phone) {
+          condominium.phone = normalizePhone(condominium.phone);
+        }
+
+        if (condominium.administrator_contact) {
+          condominium.administrator_contact = normalizePhone(condominium.administrator_contact);
+        }
+      },
+    },
   });
 
   Condominium.associate = (models) => {

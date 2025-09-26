@@ -1,6 +1,11 @@
 const { Condominium, Unit, User, UserCondominium, sequelize } = require('../models');
 const { asyncHandler, logger } = require('../middleware/errorHandler');
 const { Op } = require('sequelize');
+const {
+  normalizeCNPJ,
+  normalizeCEP,
+  normalizePhone,
+} = require('../utils/validators');
 const cacheService = require('../services/cacheService');
 
 // @desc    Obter todos os condomínios
@@ -137,10 +142,14 @@ const createCondominium = asyncHandler(async (req, res) => {
     settings
   } = req.body;
 
+  const normalizedCNPJ = cnpj ? normalizeCNPJ(cnpj) : null;
+  const normalizedZipCode = normalizeCEP(zip_code);
+  const normalizedPhone = phone ? normalizePhone(phone) : null;
+
   // Verificar se CNPJ já existe
-  if (cnpj) {
+  if (normalizedCNPJ) {
     const existingCNPJ = await Condominium.findOne({
-      where: { cnpj }
+      where: { cnpj: normalizedCNPJ }
     });
 
     if (existingCNPJ) {
@@ -167,12 +176,12 @@ const createCondominium = asyncHandler(async (req, res) => {
 
   const condominium = await Condominium.create({
     name: name.trim(),
-    cnpj,
+    cnpj: normalizedCNPJ,
     address: address.trim(),
     city: city.trim(),
     state: state.trim(),
-    zip_code,
-    phone,
+    zip_code: normalizedZipCode,
+    phone: normalizedPhone,
     email: email ? email.toLowerCase() : null,
     total_units,
     total_blocks: total_blocks || 1,
@@ -247,10 +256,14 @@ const updateCondominium = asyncHandler(async (req, res) => {
   }
 
   // Verificar CNPJ único
-  if (cnpj && cnpj !== condominium.cnpj) {
+  const normalizedCNPJ = cnpj ? normalizeCNPJ(cnpj) : null;
+  const normalizedZipCode = zip_code !== undefined ? normalizeCEP(zip_code) : undefined;
+  const normalizedPhone = phone !== undefined ? normalizePhone(phone) : undefined;
+
+  if (normalizedCNPJ && normalizedCNPJ !== condominium.cnpj) {
     const existingCNPJ = await Condominium.findOne({
-      where: { 
-        cnpj,
+      where: {
+        cnpj: normalizedCNPJ,
         id: { [Op.ne]: id }
       }
     });
@@ -264,9 +277,9 @@ const updateCondominium = asyncHandler(async (req, res) => {
   }
 
   // Verificar email único
-  if (email && email !== condominium.email) {
+  if (email && email.toLowerCase() !== condominium.email) {
     const existingEmail = await Condominium.findOne({
-      where: { 
+      where: {
         email: email.toLowerCase(),
         id: { [Op.ne]: id }
       }
@@ -283,12 +296,12 @@ const updateCondominium = asyncHandler(async (req, res) => {
   // Construir objeto de atualização
   const updateData = {};
   if (name !== undefined) updateData.name = name.trim();
-  if (cnpj !== undefined) updateData.cnpj = cnpj;
+  if (cnpj !== undefined) updateData.cnpj = normalizedCNPJ;
   if (address !== undefined) updateData.address = address.trim();
   if (city !== undefined) updateData.city = city.trim();
   if (state !== undefined) updateData.state = state.trim();
-  if (zip_code !== undefined) updateData.zip_code = zip_code;
-  if (phone !== undefined) updateData.phone = phone;
+  if (zip_code !== undefined) updateData.zip_code = normalizedZipCode;
+  if (phone !== undefined) updateData.phone = normalizedPhone;
   if (email !== undefined) updateData.email = email ? email.toLowerCase() : null;
   if (total_units !== undefined) updateData.total_units = total_units;
   if (total_blocks !== undefined) updateData.total_blocks = total_blocks;
@@ -412,16 +425,16 @@ const getCondominiumStats = asyncHandler(async (req, res) => {
   });
 
   const occupiedUnits = await Unit.count({
-    where: { 
+    where: {
       condominium_id: id,
-      status: ['occupied', 'rented']
+      status: { [Op.in]: ['occupied', 'rented'] }
     }
   });
 
   const availableUnits = await Unit.count({
-    where: { 
+    where: {
       condominium_id: id,
-      status: 'vacant'
+      status: { [Op.in]: ['available', 'vacant'] }
     }
   });
 
