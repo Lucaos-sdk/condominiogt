@@ -5,10 +5,18 @@ class CacheService {
   constructor() {
     this.client = null;
     this.isConnected = false;
-    this.connect();
+    this.isDisabled = process.env.NODE_ENV === 'test';
+
+    if (!this.isDisabled) {
+      this.connect();
+    }
   }
 
   async connect() {
+    if (this.isDisabled) {
+      return;
+    }
+
     try {
       this.client = redis.createClient({
         host: process.env.REDIS_HOST || 'localhost',
@@ -64,6 +72,10 @@ class CacheService {
 
   // Método genérico para cache com TTL
   async get(key) {
+    if (this.isDisabled) {
+      return null;
+    }
+
     if (!this.isConnected) {
       winston.warn('Redis not connected, skipping cache get');
       return null;
@@ -84,6 +96,10 @@ class CacheService {
   }
 
   async set(key, value, ttlSeconds = 300) {
+    if (this.isDisabled) {
+      return false;
+    }
+
     if (!this.isConnected) {
       winston.warn('Redis not connected, skipping cache set');
       return false;
@@ -100,6 +116,10 @@ class CacheService {
   }
 
   async del(key) {
+    if (this.isDisabled) {
+      return false;
+    }
+
     if (!this.isConnected) {
       winston.warn('Redis not connected, skipping cache delete');
       return false;
@@ -116,6 +136,10 @@ class CacheService {
   }
 
   async delPattern(pattern) {
+    if (this.isDisabled) {
+      return false;
+    }
+
     if (!this.isConnected) {
       winston.warn('Redis not connected, skipping cache delete pattern');
       return false;
@@ -136,6 +160,10 @@ class CacheService {
   }
 
   async exists(key) {
+    if (this.isDisabled) {
+      return false;
+    }
+
     if (!this.isConnected) {
       return false;
     }
@@ -150,6 +178,10 @@ class CacheService {
   }
 
   async getTTL(key) {
+    if (this.isDisabled) {
+      return -1;
+    }
+
     if (!this.isConnected) {
       return -1;
     }
@@ -297,6 +329,10 @@ class CacheService {
 
   // Método para obter estatísticas do cache
   async getCacheStats() {
+    if (this.isDisabled) {
+      return { connected: false };
+    }
+
     if (!this.isConnected) {
       return { connected: false };
     }

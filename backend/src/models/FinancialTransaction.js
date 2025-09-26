@@ -35,18 +35,24 @@ module.exports = (sequelize, DataTypes) => {
     },
     category: {
       type: DataTypes.ENUM(
-        'condominium_fee', 
-        'water', 
-        'electricity', 
-        'gas', 
-        'maintenance', 
-        'security', 
-        'cleaning', 
-        'insurance', 
-        'reserve_fund', 
+        'condominium_fee',
+        'water',
+        'electricity',
+        'gas',
+        'maintenance',
+        'security',
+        'cleaning',
+        'insurance',
+        'reserve_fund',
+        'utilities',
         'other'
       ),
       allowNull: false,
+    },
+    title: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Título opcional para facilitar a identificação da transação',
     },
     description: {
       type: DataTypes.STRING,

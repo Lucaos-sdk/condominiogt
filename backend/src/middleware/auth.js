@@ -3,8 +3,23 @@ const { User, UserCondominium } = require('../models');
 
 const authMiddleware = async (req, res, next) => {
   try {
-    const token = req.header('Authorization')?.replace('Bearer ', '');
-    
+    const authHeader = req.header('Authorization');
+
+    if (!authHeader) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token não fornecido'
+      });
+    }
+
+    const token = authHeader.replace('Bearer ', '').trim();
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token não fornecido'
+      });
+    }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
